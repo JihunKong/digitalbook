@@ -1,8 +1,9 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:14-alpine
+  postgres:
+    image: postgres:15-alpine
+    container_name: digitalbook-postgres
     restart: always
     environment:
       POSTGRES_USER: postgres
@@ -10,6 +11,8 @@ services:
       POSTGRES_DB: digitalbook
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     networks:
       - digitalbook-network
     healthcheck:
@@ -20,9 +23,13 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: digitalbook-redis
     restart: always
+    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+    ports:
+      - "6379:6379"
     networks:
       - digitalbook-network
     healthcheck:
@@ -31,26 +38,60 @@ services:
       timeout: 5s
       retries: 5
 
-  app:
+  backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-      args:
-        - NODE_ENV=production
+    container_name: digitalbook-backend
     restart: always
-    env_file:
-      - .env.production
     ports:
-      - "80:3000"
-      - "443:3000"
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://postgres:digitalbook2024@postgres:5432/digitalbook
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-digitalbook-jwt-secret-2024}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-digitalbook-refresh-secret-2024}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CORS_ORIGIN: https://xn--220bu63c.com
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
       - ./uploads:/app/uploads
-      - ./logs:/app/logs
+      - ./logs/backend:/app/logs
+    networks:
+      - digitalbook-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://xn--220bu63c.com/api
+        NEXT_PUBLIC_DOMAIN: xn--220bu63c.com
+    container_name: digitalbook-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: https://xn--220bu63c.com/api
+      NEXT_PUBLIC_DOMAIN: xn--220bu63c.com
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./logs/frontend:/app/logs
     networks:
       - digitalbook-network
     healthcheck:

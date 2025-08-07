@@ -1,12 +1,11 @@
 FROM node:18-alpine AS deps
-RUN apk add --no-cache libc6-compat openssl1.1-compat
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package*.json ./
 RUN npm install --omit=dev
 
 FROM node:18-alpine AS builder
-RUN apk add --no-cache openssl1.1-compat
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
@@ -18,7 +17,6 @@ COPY . .
 RUN npm run build
 
 FROM node:18-alpine AS runner
-RUN apk add --no-cache openssl1.1-compat
 WORKDIR /app
 
 ENV NODE_ENV production
