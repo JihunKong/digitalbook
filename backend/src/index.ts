@@ -246,13 +246,13 @@ async function gracefulShutdown(signal: string) {
       }
       
       // Close database connections
-      const db = await initializeDatabase();
-      await db.$disconnect();
+      const { disconnectDatabase } = require('./config/database');
+      await disconnectDatabase();
       logger.info('Database connections closed');
       
       // Close Redis connection
-      const redis = await initializeRedis();
-      await redis.quit();
+      const { disconnectRedis } = require('./config/redis');
+      await disconnectRedis();
       logger.info('Redis connection closed');
       
       logger.info('Graceful shutdown completed');
@@ -278,8 +278,12 @@ process.on('uncaughtException', (error) => {
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  gracefulShutdown('unhandledRejection');
+  logger.error('Unhandled Rejection:', reason);
+  logger.error('Promise:', promise);
+  // Don't immediately shutdown, give time to see the error
+  setTimeout(() => {
+    process.exit(1);
+  }, 1000);
 });
 
 startServer();

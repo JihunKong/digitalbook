@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { fileController, upload } from '../controllers/file.controller';
-import { authenticate } from '../middlewares/auth';
-import { authorize } from '../middlewares/authorize';
+import { authenticate, requireRole } from '../middlewares/auth.unified';
 
 const router = Router();
 
@@ -11,7 +10,7 @@ router.use(authenticate);
 // Upload single document (teachers and admins only)
 router.post(
   '/upload',
-  authorize(['TEACHER', 'ADMIN']),
+  requireRole('TEACHER', 'ADMIN'),
   upload.single('document'),
   fileController.uploadDocument
 );
@@ -19,7 +18,7 @@ router.post(
 // Upload multiple documents (teachers and admins only)
 router.post(
   '/upload-multiple',
-  authorize(['TEACHER', 'ADMIN']),
+  requireRole('TEACHER', 'ADMIN'),
   upload.array('documents', 5), // Max 5 files at once
   fileController.uploadMultipleDocuments
 );
@@ -27,14 +26,14 @@ router.post(
 // Get uploaded file
 router.get(
   '/:fileId',
-  authorize(['TEACHER', 'ADMIN']),
+  requireRole('TEACHER', 'ADMIN'),
   fileController.getFile
 );
 
 // Delete uploaded file
 router.delete(
   '/:fileId',
-  authorize(['TEACHER', 'ADMIN']),
+  requireRole('TEACHER', 'ADMIN'),
   fileController.deleteFile
 );
 

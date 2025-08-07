@@ -3,6 +3,9 @@ import { logger } from '../utils/logger';
 
 let redis: Redis;
 
+// Export redis client for modules that need it at initialization
+export { redis };
+
 export async function initializeRedis() {
   if (!redis) {
     redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
