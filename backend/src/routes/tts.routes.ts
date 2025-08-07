@@ -7,7 +7,7 @@ import {
   deleteAudioCache,
   getCacheStats 
 } from '../controllers/tts.controller';
-import { auth } from '../middleware/auth';
+import { auth } from '../middlewares/auth';
 
 const router = Router();
 

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { TTSService } from '../services/tts.service';
-import { AuthRequest } from '../middleware/auth';
+import { AuthRequest } from '../middlewares/auth';
 
 const ttsService = new TTSService();
 
