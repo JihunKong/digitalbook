@@ -18,6 +18,7 @@ import healthRoutes from './health.routes';
 import csrfRoutes from './csrf.routes';
 import ttsRoutes from './tts.routes';
 import fileRoutes from './file.routes';
+import demoRoutes from './demo.routes';
 
 const router = Router();
 
@@ -40,5 +41,6 @@ router.use('/guest', guestRoutes);
 router.use('/health', healthRoutes);
 router.use('/tts', ttsRoutes);
 router.use('/files', fileRoutes);
+router.use('/demo', demoRoutes);
 
 export default router;

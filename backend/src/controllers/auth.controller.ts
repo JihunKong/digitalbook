@@ -147,7 +147,7 @@ class AuthController {
           data: {
             id: sessionId,
             token: sessionId,
-            userId: userWithProfile.id,
+            userId: user.id,
             expiresAt,
             ipAddress: req.ip,
             userAgent: req.headers['user-agent'],
