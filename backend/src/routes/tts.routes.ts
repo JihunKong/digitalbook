@@ -15,13 +15,13 @@ const router = Router();
  * Generate speech from text
  * POST /api/tts/generate
  */
-router.post('/generate', auth, generateSpeech);
+router.post('/generate', generateSpeech);
 
 /**
  * Generate speech for multiple texts
  * POST /api/tts/batch
  */
-router.post('/batch', auth, batchGenerateSpeech);
+router.post('/batch', batchGenerateSpeech);
 
 /**
  * Get audio file by cache key
@@ -39,12 +39,12 @@ router.get('/voices', getVoices);
  * Delete audio from cache
  * DELETE /api/tts/cache/:cacheKey
  */
-router.delete('/cache/:cacheKey', auth, deleteAudioCache);
+router.delete('/cache/:cacheKey', deleteAudioCache);
 
 /**
  * Get cache statistics
  * GET /api/tts/cache/stats
  */
-router.get('/cache/stats', auth, getCacheStats);
+router.get('/cache/stats', getCacheStats);
 
 export default router;
