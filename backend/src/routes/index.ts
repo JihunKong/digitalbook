@@ -17,6 +17,7 @@ import guestRoutes from './guest.routes';
 import healthRoutes from './health.routes';
 import csrfRoutes from './csrf.routes';
 import ttsRoutes from './tts.routes';
+import fileRoutes from './file.routes';
 
 const router = Router();
 
@@ -38,5 +39,6 @@ router.use('/guest', guestRoutes);
 // router.use('/i18n', i18nRoutes);
 router.use('/health', healthRoutes);
 router.use('/tts', ttsRoutes);
+router.use('/files', fileRoutes);
 
 export default router;

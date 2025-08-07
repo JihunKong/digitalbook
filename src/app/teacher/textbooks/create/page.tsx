@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
+import { EnhancedFileUpload } from '@/components/multimedia/EnhancedFileUpload'
 import { 
   FileText, 
   Upload, 
@@ -320,16 +321,43 @@ export default function CreateTextbookPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg">
-                  <div className="text-center">
-                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">
-                      또는 텍스트 파일을 드래그하여 업로드하세요
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      지원 형식: .txt, .docx, .pdf
-                    </p>
-                  </div>
+                <div className="mt-4">
+                  <Label>파일 업로드</Label>
+                  <p className="text-sm text-gray-600 mb-2">
+                    PDF, TXT, DOCX 파일을 업로드하여 내용을 자동으로 불러올 수 있습니다
+                  </p>
+                  <EnhancedFileUpload
+                    acceptedTypes={['.pdf', '.txt', '.docx', '.doc', 'application/pdf', 'text/plain', 
+                                   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                   'application/msword']}
+                    maxFileSize={50}
+                    maxFiles={1}
+                    onUploadComplete={(files) => {
+                      // Handle file upload and extract text content
+                      if (files.length > 0) {
+                        const file = files[0];
+                        const extractedText = (file as any).extractedText;
+                        
+                        if (extractedText) {
+                          // Update the content field with extracted text
+                          setFormData(prev => ({
+                            ...prev,
+                            content: extractedText
+                          }));
+                          
+                          toast({
+                            title: '파일 업로드 완료',
+                            description: `${file.name} 파일에서 텍스트를 성공적으로 추출했습니다.`,
+                          });
+                        } else {
+                          toast({
+                            title: '파일 업로드 완료',
+                            description: `${file.name} 파일이 업로드되었습니다.`,
+                          });
+                        }
+                      }
+                    }}
+                  />
                 </div>
               </motion.div>
             )}

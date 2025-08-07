@@ -147,7 +147,7 @@ class AuthController {
           data: {
             id: sessionId,
             token: sessionId,
-            userId: user.id,
+            userId: userWithProfile.id,
             expiresAt,
             ipAddress: req.ip,
             userAgent: req.headers['user-agent'],
@@ -212,40 +212,45 @@ class AuthController {
         throw new AppError('Email and password are required', 400);
       }
       
-      // 사용자 조회 (프로필 포함)
+      // 사용자 조회 (먼저 기본 정보만)
       const user = await prisma.user.findUnique({
         where: { email },
-        include: {
-          teacherProfile: user?.role === UserRole.TEACHER,
-          studentProfile: user?.role === UserRole.STUDENT,
-          adminProfile: user?.role === UserRole.ADMIN,
-        },
       });
       
       if (!user) {
         throw new AppError('Invalid credentials', 401);
       }
       
+      // 역할에 따른 프로필 포함하여 다시 조회
+      const userWithProfile = await prisma.user.findUnique({
+        where: { email },
+        include: {
+          teacherProfile: user.role === UserRole.TEACHER,
+          studentProfile: user.role === UserRole.STUDENT,
+          adminProfile: user.role === UserRole.ADMIN,
+        },
+      });
+      
       // 계정 활성화 확인
-      if (!user.isActive) {
+      if (!userWithProfile.isActive) {
         throw new AppError('Account is deactivated', 403);
       }
       
       // 비밀번호 검증 (소셜 로그인이나 게스트는 비밀번호가 없을 수 있음)
-      if (user.password) {
-        const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (userWithProfile.password) {
+        const isPasswordValid = await bcrypt.compare(password, userWithProfile.password);
         
         if (!isPasswordValid) {
           throw new AppError('Invalid credentials', 401);
         }
-      } else if (user.role !== UserRole.GUEST) {
+      } else if (userWithProfile.role !== UserRole.GUEST) {
         throw new AppError('Please use social login', 400);
       }
       
       // 기존 세션 정리 (선택적)
       const existingSessions = await prisma.session.findMany({
         where: {
-          userId: user.id,
+          userId: userWithProfile.id,
           expiresAt: { gt: new Date() },
         },
       });
@@ -261,7 +266,7 @@ class AuthController {
           where: { id: oldestSession.id },
         });
         
-        await redis.del(`refresh:${user.id}:${oldestSession.id}`);
+        await redis.del(`refresh:${userWithProfile.id}:${oldestSession.id}`);
       }
       
       // 새 세션 생성
@@ -272,7 +277,7 @@ class AuthController {
         data: {
           id: sessionId,
           token: sessionId,
-          userId: user.id,
+          userId: userWithProfile.id,
           expiresAt,
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
@@ -281,29 +286,29 @@ class AuthController {
       
       // JWT 토큰 생성
       const { accessToken, refreshToken } = this.generateTokenPair({
-        userId: user.id,
-        email: user.email,
-        role: user.role,
+        userId: userWithProfile.id,
+        email: userWithProfile.email,
+        role: userWithProfile.role,
         sessionId,
       });
       
       // Redis에 리프레시 토큰 저장
       await redis.setex(
-        `refresh:${user.id}:${sessionId}`,
+        `refresh:${userWithProfile.id}:${sessionId}`,
         7 * 24 * 60 * 60,
         refreshToken
       );
       
       // 마지막 로그인 시간 업데이트
       await prisma.user.update({
-        where: { id: user.id },
+        where: { id: userWithProfile.id },
         data: { lastLoginAt: new Date() },
       });
       
       // 활동 로그 기록
       await prisma.userActivity.create({
         data: {
-          userId: user.id,
+          userId: userWithProfile.id,
           action: 'login',
           details: {
             method: 'password',
@@ -325,18 +330,18 @@ class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
       
-      logger.info(`User logged in: ${user.email}`);
+      logger.info(`User logged in: ${userWithProfile.email}`);
       
       // 프로필 정보 포함한 응답
-      const profile = user.teacherProfile || user.studentProfile || user.adminProfile;
+      const profile = userWithProfile.teacherProfile || userWithProfile.studentProfile || userWithProfile.adminProfile;
       
       res.json({
         message: 'Login successful',
         user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
+          id: userWithProfile.id,
+          email: userWithProfile.email,
+          name: userWithProfile.name,
+          role: userWithProfile.role,
           profile,
         },
       });

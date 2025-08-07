@@ -65,7 +65,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(data.user);
 
       // Redirect based on role
-      if (data.user.role === 'TEACHER') {
+      if (data.user.role === 'ADMIN') {
+        router.push('/admin/dashboard');
+      } else if (data.user.role === 'TEACHER') {
         router.push('/teacher/dashboard');
       } else if (data.user.role === 'STUDENT') {
         router.push('/student/dashboard');

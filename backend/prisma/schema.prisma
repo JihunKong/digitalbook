@@ -394,6 +394,23 @@ model Document {
   @@index([uploaderId])
 }
 
+// File model for document uploads with text extraction
+model File {
+  id            String     @id @default(uuid())
+  filename      String
+  originalName  String
+  mimeType      String
+  size          Int
+  path          String
+  uploadedBy    String
+  extractedText String?    @db.Text
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@index([uploadedBy])
+}
+
 // ==========================================
 // 게스트 액세스 (기존 호환성)
 // ==========================================

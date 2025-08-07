@@ -39,7 +39,9 @@ interface EnhancedFileUploadProps {
 }
 
 export function EnhancedFileUpload({
-  acceptedTypes = ['image/*', 'video/*', 'audio/*', 'application/pdf'],
+  acceptedTypes = ['image/*', 'video/*', 'audio/*', 'application/pdf', 'text/plain', 
+                   'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+                   'application/msword', '.txt', '.docx', '.doc'],
   maxFileSize = 100, // 100MB
   maxFiles = 10,
   onUploadComplete,
@@ -51,19 +53,25 @@ export function EnhancedFileUpload({
 
   const getFileIcon = (file: File) => {
     const type = file.type
+    const name = file.name.toLowerCase()
     if (type.startsWith('image/')) return <Image className="w-6 h-6" />
     if (type.startsWith('video/')) return <Video className="w-6 h-6" />
     if (type.startsWith('audio/')) return <Music className="w-6 h-6" />
-    if (type === 'application/pdf') return <FileText className="w-6 h-6" />
+    if (type === 'application/pdf' || name.endsWith('.pdf')) return <FileText className="w-6 h-6" />
+    if (type === 'text/plain' || name.endsWith('.txt')) return <FileText className="w-6 h-6" />
+    if (type.includes('word') || name.endsWith('.docx') || name.endsWith('.doc')) return <FileText className="w-6 h-6" />
     return <File className="w-6 h-6" />
   }
 
   const getFileTypeColor = (file: File) => {
     const type = file.type
+    const name = file.name.toLowerCase()
     if (type.startsWith('image/')) return 'text-blue-600 bg-blue-100'
     if (type.startsWith('video/')) return 'text-purple-600 bg-purple-100'
     if (type.startsWith('audio/')) return 'text-green-600 bg-green-100'
-    if (type === 'application/pdf') return 'text-red-600 bg-red-100'
+    if (type === 'application/pdf' || name.endsWith('.pdf')) return 'text-red-600 bg-red-100'
+    if (type === 'text/plain' || name.endsWith('.txt')) return 'text-yellow-600 bg-yellow-100'
+    if (type.includes('word') || name.endsWith('.docx') || name.endsWith('.doc')) return 'text-indigo-600 bg-indigo-100'
     return 'text-gray-600 bg-gray-100'
   }
 
@@ -83,9 +91,15 @@ export function EnhancedFileUpload({
 
     // Check file type
     const isValidType = acceptedTypes.some(type => {
+      // Check file extension matches
+      if (type.startsWith('.')) {
+        return file.name.toLowerCase().endsWith(type)
+      }
+      // Check MIME type with wildcard
       if (type.endsWith('/*')) {
         return file.type.startsWith(type.slice(0, -1))
       }
+      // Check exact MIME type match
       return file.type === type
     })
 
@@ -141,18 +155,53 @@ export function EnhancedFileUpload({
           : f
       ))
 
-      // Simulate upload progress
-      for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise(resolve => setTimeout(resolve, 200))
-        setFiles(prev => prev.map(f => 
-          f.id === uploadFile.id 
-            ? { ...f, progress }
-            : f
-        ))
-      }
+      // Create FormData for file upload
+      const formData = new FormData()
+      formData.append('document', uploadFile.file)
 
-      // Mock successful upload
-      const mockUrl = URL.createObjectURL(uploadFile.file)
+      // Upload file to server with progress tracking
+      const xhr = new XMLHttpRequest()
+      
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100)
+          setFiles(prev => prev.map(f => 
+            f.id === uploadFile.id 
+              ? { ...f, progress }
+              : f
+          ))
+        }
+      })
+
+      // Handle upload completion
+      const uploadPromise = new Promise<any>((resolve, reject) => {
+        xhr.onload = function() {
+          if (xhr.status === 200) {
+            const response = JSON.parse(xhr.responseText)
+            resolve(response)
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`))
+          }
+        }
+        
+        xhr.onerror = () => reject(new Error('Network error'))
+        xhr.onabort = () => reject(new Error('Upload cancelled'))
+      })
+
+      // Send request
+      xhr.open('POST', '/api/files/upload')
+      
+      // Add auth token if available
+      const token = localStorage.getItem('token')
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      }
+      
+      xhr.send(formData)
+      
+      // Wait for upload to complete
+      const response = await uploadPromise
       
       setFiles(prev => prev.map(f => 
         f.id === uploadFile.id 
@@ -160,20 +209,21 @@ export function EnhancedFileUpload({
               ...f, 
               status: 'completed' as const, 
               progress: 100,
-              url: mockUrl 
+              url: response.file?.id || URL.createObjectURL(uploadFile.file)
             }
           : f
       ))
 
-      // Notify parent component
+      // Notify parent component with actual response data
       if (onUploadComplete) {
         const completedFiles = files
-          .filter(f => f.status === 'completed')
+          .filter(f => f.status === 'completed' || f.id === uploadFile.id)
           .map(f => ({
             id: f.id,
-            url: f.url!,
+            url: f.url || response.file?.id || '',
             type: f.file.type,
-            name: f.file.name
+            name: f.file.name,
+            extractedText: response.content?.text
           }))
         onUploadComplete(completedFiles)
       }
@@ -185,7 +235,7 @@ export function EnhancedFileUpload({
           ? { 
               ...f, 
               status: 'error' as const, 
-              error: '업로드 중 오류가 발생했습니다' 
+              error: error instanceof Error ? error.message : '업로드 중 오류가 발생했습니다' 
             }
           : f
       ))

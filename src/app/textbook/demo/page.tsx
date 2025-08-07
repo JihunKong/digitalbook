@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { ClientOnly } from '@/components/ClientOnly'
+import { useTTS } from '@/hooks/useTTS'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -83,6 +84,7 @@ export default function TextbookDemoPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('textbook')
   const [isSpeaking, setIsSpeaking] = useState(false)
+  const { speak: speakTTS, stop: stopTTS, isLoading: isTTSLoading } = useTTS()
   
   // 학생 정보 (데모용)
   const studentInfo = {
@@ -138,14 +140,9 @@ export default function TextbookDemoPage() {
     }
   }
 
-  const handleTTS = () => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
-      alert('이 브라우저는 음성 읽기를 지원하지 않습니다.')
-      return
-    }
-
+  const handleTTS = async () => {
     if (isSpeaking) {
-      window.speechSynthesis.cancel()
+      stopTTS()
       setIsSpeaking(false)
     } else {
       const textContent = currentContent?.content || ''
@@ -154,22 +151,18 @@ export default function TextbookDemoPage() {
         return
       }
 
-      const utterance = new SpeechSynthesisUtterance(textContent)
-      utterance.lang = 'ko-KR'
-      utterance.rate = 1.0
-      utterance.pitch = 1.0
-      
-      utterance.onend = () => {
-        setIsSpeaking(false)
-      }
-      
-      utterance.onerror = () => {
-        setIsSpeaking(false)
-        alert('음성 읽기 중 오류가 발생했습니다.')
-      }
-
-      window.speechSynthesis.speak(utterance)
       setIsSpeaking(true)
+      
+      // Use OpenAI TTS with Korean-optimized settings
+      await speakTTS(textContent, {
+        voice: 'shimmer',  // Better for Korean
+        model: 'tts-1-hd', // High quality
+        speed: 0.9,        // Slightly slower for clarity
+        language: 'ko',
+        autoPlay: true
+      })
+      
+      setIsSpeaking(false)
     }
   }
 
@@ -263,9 +256,15 @@ export default function TextbookDemoPage() {
                         size="sm"
                         onClick={handleTTS}
                         className="ml-2"
+                        disabled={isTTSLoading}
                         title={isSpeaking ? '읽기 중지' : '음성으로 읽기'}
                       >
-                        {isSpeaking ? (
+                        {isTTSLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            생성 중...
+                          </>
+                        ) : isSpeaking ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                             중지

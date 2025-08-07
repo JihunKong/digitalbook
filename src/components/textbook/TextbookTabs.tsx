@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BookOpen, PenTool, Users, Volume2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
+import { useTTS } from '@/hooks/useTTS'
 
 interface TextbookTabsProps {
   children: React.ReactNode
@@ -15,26 +16,22 @@ export function TextbookTabs({ children, onTabChange, activeTab: externalActiveT
   const [internalActiveTab, setInternalActiveTab] = useState('textbook')
   const activeTab = externalActiveTab || internalActiveTab
   const [isSpeaking, setIsSpeaking] = useState(false)
+  const { speak: speakTTS, stop: stopTTS, isLoading: isTTSLoading } = useTTS()
 
   const handleTabChange = (value: string) => {
     setInternalActiveTab(value)
     onTabChange?.(value)
     
     // TTS 중지
-    if (isSpeaking && window.speechSynthesis) {
-      window.speechSynthesis.cancel()
+    if (isSpeaking) {
+      stopTTS()
       setIsSpeaking(false)
     }
   }
 
-  const handleTTS = () => {
-    if (!window.speechSynthesis) {
-      alert('이 브라우저는 음성 읽기를 지원하지 않습니다.')
-      return
-    }
-
+  const handleTTS = async () => {
     if (isSpeaking) {
-      window.speechSynthesis.cancel()
+      stopTTS()
       setIsSpeaking(false)
     } else {
       // 현재 페이지의 텍스트 가져오기
@@ -44,22 +41,18 @@ export function TextbookTabs({ children, onTabChange, activeTab: externalActiveT
         return
       }
 
-      const utterance = new SpeechSynthesisUtterance(textContent)
-      utterance.lang = 'ko-KR'
-      utterance.rate = 1.0
-      utterance.pitch = 1.0
-      
-      utterance.onend = () => {
-        setIsSpeaking(false)
-      }
-      
-      utterance.onerror = () => {
-        setIsSpeaking(false)
-        alert('음성 읽기 중 오류가 발생했습니다.')
-      }
-
-      window.speechSynthesis.speak(utterance)
       setIsSpeaking(true)
+      
+      // Use OpenAI TTS with Korean-optimized settings
+      await speakTTS(textContent, {
+        voice: 'shimmer',  // Better for Korean
+        model: 'tts-1-hd', // High quality
+        speed: 0.9,        // Slightly slower for clarity
+        language: 'ko',
+        autoPlay: true
+      })
+      
+      setIsSpeaking(false)
     }
   }
 
@@ -87,9 +80,15 @@ export function TextbookTabs({ children, onTabChange, activeTab: externalActiveT
             size="sm"
             onClick={handleTTS}
             className="ml-2"
+            disabled={isTTSLoading}
             title={isSpeaking ? '읽기 중지' : '음성으로 읽기'}
           >
-            {isSpeaking ? (
+            {isTTSLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                생성 중...
+              </>
+            ) : isSpeaking ? (
               <>
                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />
                 중지

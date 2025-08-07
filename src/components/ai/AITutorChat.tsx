@@ -26,6 +26,7 @@ import {
   TrendingUp
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useTTS } from '@/hooks/useTTS'
 
 interface Message {
   id: string
@@ -73,6 +74,7 @@ export function AITutorChat({ pageContent, pageNumber, textbookTitle }: AITutorC
   const [interactionCount, setInteractionCount] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const { speak: speakTTS, stop: stopTTS, isSpeaking } = useTTS()
 
   useEffect(() => {
     scrollToBottom()
@@ -284,13 +286,15 @@ export function AITutorChat({ pageContent, pageNumber, textbookTitle }: AITutorC
     }
   }
 
-  const speakMessage = (text: string) => {
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.lang = 'ko-KR'
-      utterance.rate = 0.8
-      window.speechSynthesis.speak(utterance)
-    }
+  const speakMessage = async (text: string) => {
+    // Use OpenAI TTS with Korean-optimized settings
+    await speakTTS(text, {
+      voice: 'shimmer',  // Better for Korean
+      model: 'tts-1-hd', // High quality
+      speed: 0.9,        // Slightly slower for clarity
+      language: 'ko',
+      autoPlay: true
+    })
   }
 
   const generateQuiz = async () => {
