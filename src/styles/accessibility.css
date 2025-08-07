@@ -1,0 +1,424 @@
+/* Accessibility Enhancements */
+
+/* Screen Reader Only Content */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Skip Links */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: #000;
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 1000;
+  text-decoration: none;
+  border-radius: 4px;
+  font-weight: 500;
+  transition: top 0.3s ease-in-out;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* High Contrast Mode */
+.high-contrast {
+  --background: #000000;
+  --foreground: #ffffff;
+  --muted: #333333;
+  --muted-foreground: #cccccc;
+  --card: #111111;
+  --card-foreground: #ffffff;
+  --popover: #111111;
+  --popover-foreground: #ffffff;
+  --border: #666666;
+  --input: #222222;
+  --primary: #ffff00;
+  --primary-foreground: #000000;
+  --secondary: #333333;
+  --secondary-foreground: #ffffff;
+  --accent: #444444;
+  --accent-foreground: #ffffff;
+  --destructive: #ff0000;
+  --destructive-foreground: #ffffff;
+  --ring: #ffff00;
+}
+
+.high-contrast * {
+  border-color: var(--border) !important;
+  outline-color: var(--ring) !important;
+}
+
+.high-contrast img {
+  filter: contrast(1.2) brightness(1.1);
+}
+
+/* Enhanced Focus Indicators */
+.show-focus-indicators *:focus {
+  outline: 3px solid var(--ring) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.2) !important;
+}
+
+.show-focus-indicators button:focus,
+.show-focus-indicators a:focus,
+.show-focus-indicators input:focus,
+.show-focus-indicators textarea:focus,
+.show-focus-indicators select:focus {
+  transform: scale(1.02);
+  transition: transform 0.1s ease-in-out;
+}
+
+/* Reduced Motion */
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+.reduced-motion {
+  scroll-behavior: auto !important;
+}
+
+/* Font Size Scaling */
+:root {
+  --accessibility-font-scale: 1;
+}
+
+[data-font-size="small"] {
+  --accessibility-font-scale: 0.875;
+}
+
+[data-font-size="medium"] {
+  --accessibility-font-scale: 1;
+}
+
+[data-font-size="large"] {
+  --accessibility-font-scale: 1.125;
+}
+
+[data-font-size="extra-large"] {
+  --accessibility-font-scale: 1.25;
+}
+
+/* Apply font scaling to text elements */
+body,
+h1, h2, h3, h4, h5, h6,
+p, span, div, a, button,
+input, textarea, select,
+label, li {
+  font-size: calc(1em * var(--accessibility-font-scale));
+}
+
+/* Maintain icon sizes */
+svg, .icon {
+  width: auto !important;
+  height: auto !important;
+  flex-shrink: 0;
+}
+
+/* Focus Management */
+[tabindex="-1"]:focus {
+  outline: none !important;
+}
+
+/* Keyboard Navigation Helpers */
+.keyboard-navigation-active {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Form Accessibility */
+.required::after {
+  content: " *";
+  color: hsl(var(--destructive));
+  font-weight: bold;
+}
+
+/* Error States */
+[aria-invalid="true"] {
+  border-color: hsl(var(--destructive)) !important;
+  box-shadow: 0 0 0 2px hsla(var(--destructive), 0.2) !important;
+}
+
+/* Live Region Styling */
+[aria-live] {
+  position: relative;
+}
+
+[role="alert"] {
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid hsl(var(--destructive));
+  background: hsla(var(--destructive), 0.1);
+  color: hsl(var(--destructive-foreground));
+}
+
+[role="status"] {
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid hsl(var(--primary));
+  background: hsla(var(--primary), 0.1);
+  color: hsl(var(--primary-foreground));
+}
+
+/* Modal and Dialog Accessibility */
+[role="dialog"] {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+}
+
+[role="dialog"][aria-hidden="true"] {
+  display: none !important;
+}
+
+/* Backdrop for modals */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Toast and Notification Accessibility */
+[role="alert"][data-toast] {
+  position: fixed;
+  z-index: 1050;
+  pointer-events: auto;
+}
+
+/* Progress Indicators */
+[role="progressbar"] {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+[role="progressbar"] .progress-fill {
+  background: hsl(var(--primary));
+  height: 100%;
+  transition: width 0.3s ease-in-out;
+}
+
+.reduced-motion [role="progressbar"] .progress-fill {
+  transition: none;
+}
+
+/* Data Tables */
+table[role="table"] {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table[role="table"] th {
+  background: hsl(var(--muted));
+  font-weight: 600;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid hsl(var(--border));
+}
+
+table[role="table"] td {
+  padding: 12px;
+  border: 1px solid hsl(var(--border));
+}
+
+table[role="table"] tr:hover {
+  background: hsla(var(--muted), 0.5);
+}
+
+/* Navigation Landmarks */
+[role="navigation"] {
+  position: relative;
+}
+
+[role="navigation"]::before {
+  content: attr(aria-label);
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  padding: 4px 8px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  font-size: 0.75rem;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+[role="navigation"]:focus-within::before {
+  opacity: 1;
+}
+
+/* Link Accessibility */
+a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+a:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* External links indicator */
+a[href^="http"]::after,
+a[href^="mailto:"]::after,
+a[href^="tel:"]::after {
+  content: " (새 창)";
+  font-size: 0.75em;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Button Accessibility */
+button {
+  position: relative;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+button:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Form Control Spacing */
+.form-control + .form-control {
+  margin-top: 16px;
+}
+
+/* Error Summary for Forms */
+.error-summary {
+  background: hsla(var(--destructive), 0.1);
+  border: 1px solid hsl(var(--destructive));
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.error-summary h2 {
+  color: hsl(var(--destructive));
+  margin-bottom: 12px;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+.error-summary ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.error-summary li {
+  padding: 4px 0;
+}
+
+.error-summary a {
+  color: hsl(var(--destructive));
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.error-summary a:hover {
+  text-decoration: underline;
+}
+
+/* Print Styles */
+@media print {
+  .skip-link,
+  [role="banner"],
+  [role="navigation"],
+  [role="complementary"],
+  [role="contentinfo"],
+  button,
+  .no-print {
+    display: none !important;
+  }
+  
+  a::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+  
+  a[href^="#"]::after,
+  a[href^="javascript:"]::after {
+    content: "";
+  }
+}
+
+/* Touch Target Improvements */
+@media (hover: none) and (pointer: coarse) {
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role="button"],
+  [role="link"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Responsive Typography */
+@media (max-width: 768px) {
+  [data-font-size="large"] {
+    --accessibility-font-scale: 1.2;
+  }
+  
+  [data-font-size="extra-large"] {
+    --accessibility-font-scale: 1.35;
+  }
+}
+
+/* Animation Utilities for Screen Readers */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.reduced-motion .fade-in-up {
+  animation: none;
+}

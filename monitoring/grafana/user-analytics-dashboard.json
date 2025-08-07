@@ -1,0 +1,225 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "digitalbook-analytics",
+    "title": "User Behavior Analytics - Digital Textbook Platform",
+    "tags": ["digitalbook", "analytics", "users"],
+    "timezone": "browser",
+    "schemaVersion": 30,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "type": "stat",
+        "title": "Total Active Users",
+        "targets": [
+          {
+            "expr": "digitalbook_active_users_total",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "type": "stat",
+        "title": "Daily Active Users (DAU)",
+        "targets": [
+          {
+            "expr": "digitalbook_dau",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "type": "stat",
+        "title": "Average Session Duration",
+        "targets": [
+          {
+            "expr": "avg(digitalbook_session_duration_seconds)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "type": "stat",
+        "title": "Conversion Rate",
+        "targets": [
+          {
+            "expr": "(digitalbook_signups_total / digitalbook_visitors_total) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 2},
+                {"color": "green", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "type": "timeseries",
+        "title": "User Activity by Type",
+        "targets": [
+          {
+            "expr": "rate(digitalbook_user_actions_total{action=\"login\"}[5m])",
+            "legendFormat": "Logins",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(digitalbook_user_actions_total{action=\"view_textbook\"}[5m])",
+            "legendFormat": "Textbook Views",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(digitalbook_user_actions_total{action=\"submit_assignment\"}[5m])",
+            "legendFormat": "Assignment Submissions",
+            "refId": "C"
+          },
+          {
+            "expr": "rate(digitalbook_user_actions_total{action=\"ai_chat\"}[5m])",
+            "legendFormat": "AI Chat Interactions",
+            "refId": "D"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "type": "piechart",
+        "title": "User Distribution by Role",
+        "targets": [
+          {
+            "expr": "digitalbook_users_by_role",
+            "legendFormat": "{{ role }}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "type": "heatmap",
+        "title": "User Activity Heatmap (Hourly)",
+        "targets": [
+          {
+            "expr": "digitalbook_activity_by_hour",
+            "format": "heatmap",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "type": "table",
+        "title": "Top Performing Content",
+        "targets": [
+          {
+            "expr": "topk(10, digitalbook_content_engagement)",
+            "format": "table",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "gridPos": {"h": 6, "w": 8, "x": 0, "y": 20},
+        "type": "gauge",
+        "title": "User Retention Rate (7-day)",
+        "targets": [
+          {
+            "expr": "(digitalbook_retained_users_7d / digitalbook_new_users_7d_ago) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 40},
+                {"color": "green", "value": 70}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "gridPos": {"h": 6, "w": 8, "x": 8, "y": 20},
+        "type": "stat",
+        "title": "Average Learning Progress",
+        "targets": [
+          {
+            "expr": "avg(digitalbook_student_progress_percent)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 1
+          }
+        }
+      },
+      {
+        "id": 11,
+        "gridPos": {"h": 6, "w": 8, "x": 16, "y": 20},
+        "type": "stat",
+        "title": "AI Feature Adoption Rate",
+        "targets": [
+          {
+            "expr": "(digitalbook_ai_users / digitalbook_total_users) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 1
+          }
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

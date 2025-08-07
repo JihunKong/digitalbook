@@ -1,0 +1,117 @@
+/* Markdown Styles for AI Tutor */
+
+/* Prose override for chat messages */
+.prose.prose-chat {
+  color: inherit;
+  max-width: none;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.prose.prose-chat p {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.prose.prose-chat p:last-child {
+  margin-bottom: 0;
+}
+
+.prose.prose-chat ul,
+.prose.prose-chat ol {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-left: 1.5rem;
+}
+
+.prose.prose-chat li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.prose.prose-chat h1,
+.prose.prose-chat h2,
+.prose.prose-chat h3,
+.prose.prose-chat h4 {
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.prose.prose-chat h1 {
+  font-size: 1.125rem;
+}
+
+.prose.prose-chat h2 {
+  font-size: 1rem;
+}
+
+.prose.prose-chat h3 {
+  font-size: 0.875rem;
+}
+
+.prose.prose-chat pre {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  background-color: rgb(17 24 39);
+  color: rgb(243 244 246);
+  border-radius: 0.375rem;
+  overflow-x: auto;
+}
+
+.prose.prose-chat code {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.25rem;
+  background-color: rgb(229 231 235);
+  border-radius: 0.25rem;
+}
+
+.prose.prose-chat pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.prose.prose-chat blockquote {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-left: 0.75rem;
+  border-left-width: 4px;
+  border-left-color: rgb(209 213 219);
+  font-style: italic;
+}
+
+.prose.prose-chat strong {
+  font-weight: 600;
+}
+
+.prose.prose-chat a {
+  color: rgb(37 99 235);
+  text-decoration: none;
+}
+
+.prose.prose-chat a:hover {
+  text-decoration: underline;
+}
+
+.prose.prose-chat hr {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  border-color: rgb(229 231 235);
+}
+
+/* Dark mode adjustments for user messages */
+.prose.prose-chat-dark code {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: rgb(243 244 246);
+}
+
+.prose.prose-chat-dark a {
+  color: rgb(147 197 253);
+}
+
+.prose.prose-chat-dark blockquote {
+  border-left-color: rgba(255, 255, 255, 0.3);
+}

@@ -1,0 +1,42 @@
+import { Router } from 'express';
+import authRoutes from './auth.routes';
+import userRoutes from './user.routes';
+import textbookRoutes from './textbook.routes';
+import classRoutes from './class.routes';
+// import assignmentRoutes from './assignment.routes';
+import chatRoutes from './chat.routes';
+// import analyticsRoutes from './analytics.routes';
+// import imagesRoutes from './images.routes';
+import guestRoutes from './guest.routes';
+// import studentRoutes from './student.routes';
+// import multimediaRoutes from './multimedia.routes';
+// import notificationRoutes from './notification.routes';
+// import performanceRoutes from './performance.routes';
+// import backupRoutes from './backup.routes';
+// import i18nRoutes from './i18n.routes';
+import healthRoutes from './health.routes';
+import csrfRoutes from './csrf.routes';
+import ttsRoutes from './tts.routes';
+
+const router = Router();
+
+router.use('/csrf', csrfRoutes);
+router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
+router.use('/textbooks', textbookRoutes);
+router.use('/classes', classRoutes);
+// router.use('/assignments', assignmentRoutes);
+router.use('/chat', chatRoutes);
+// router.use('/analytics', analyticsRoutes);
+// router.use('/images', imagesRoutes);
+router.use('/guest', guestRoutes);
+// router.use('/students', studentRoutes);
+// router.use('/multimedia', multimediaRoutes);
+// router.use('/notifications', notificationRoutes);
+// router.use('/performance', performanceRoutes);
+// router.use('/backup', backupRoutes);
+// router.use('/i18n', i18nRoutes);
+router.use('/health', healthRoutes);
+router.use('/tts', ttsRoutes);
+
+export default router;

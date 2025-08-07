@@ -1,0 +1,288 @@
+name: E2E Tests - Unified Auth System
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'backend/**'
+      - 'tests/e2e/**'
+      - 'playwright.config.ts'
+      - 'docker-compose.e2e.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'backend/**'
+      - 'tests/e2e/**'
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - auth-unified
+          - guest-access
+          - performance
+
+jobs:
+  e2e-tests:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        shard: [1/4, 2/4, 3/4, 4/4]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver-opts: network=host
+      
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      
+      - name: Create .env.test file
+        run: |
+          cat > .env.test << EOF
+          NODE_ENV=test
+          DATABASE_URL=postgresql://testuser:testpass123@localhost:5433/digitalbook_test
+          REDIS_URL=redis://localhost:6380
+          JWT_SECRET=test-jwt-secret-key-2024
+          JWT_REFRESH_SECRET=test-jwt-refresh-secret-key-2024
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          TEST_ADMIN_EMAIL=admin@test.com
+          TEST_ADMIN_PASSWORD=Admin123!@#
+          TEST_TEACHER_EMAIL=teacher1@test.com
+          TEST_TEACHER_PASSWORD=Teacher123!
+          TEST_STUDENT_EMAIL=student1@test.com
+          TEST_STUDENT_PASSWORD=Student123!
+          EOF
+      
+      - name: Build Docker images
+        run: |
+          docker-compose -f docker-compose.e2e.yml build \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            --cache-from type=local,src=/tmp/.buildx-cache \
+            --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max
+      
+      - name: Move Docker cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+      
+      - name: Start services
+        run: |
+          docker-compose -f docker-compose.e2e.yml up -d \
+            postgres-test \
+            redis-test \
+            backend-test \
+            frontend-test \
+            seeder-test
+          
+          # Wait for services to be ready
+          timeout 120 bash -c 'until docker-compose -f docker-compose.e2e.yml exec -T backend-test curl -f http://localhost:4000/api/health; do sleep 5; done'
+      
+      - name: Run E2E tests
+        env:
+          BROWSER: ${{ matrix.browser }}
+          SHARD: ${{ matrix.shard }}
+          CI: true
+        run: |
+          test_file="${{ github.event.inputs.test_suite == 'all' && '' || format('tests/e2e/{0}.spec.ts', github.event.inputs.test_suite) }}"
+          
+          docker-compose -f docker-compose.e2e.yml run --rm \
+            -e BROWSER=${{ matrix.browser }} \
+            -e SHARD=${{ matrix.shard }} \
+            -e CI=true \
+            -e WORKERS=2 \
+            playwright-test \
+            npx playwright test ${test_file} \
+            --project=${{ matrix.browser }} \
+            --shard=${{ matrix.shard }} \
+            --reporter=json,html
+      
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-artifacts-${{ matrix.browser }}-${{ strategy.job-index }}
+          path: |
+            playwright-report/
+            test-results/
+            trace/
+            videos/
+            screenshots/
+          retention-days: 7
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results-${{ matrix.browser }}-${{ strategy.job-index }}
+          path: playwright-report/results.json
+      
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          mkdir -p logs
+          docker-compose -f docker-compose.e2e.yml logs > logs/docker-compose.log
+          docker ps -a > logs/docker-ps.log
+          docker-compose -f docker-compose.e2e.yml exec -T backend-test cat /app/logs/error.log > logs/backend-error.log || true
+      
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: failure-logs-${{ matrix.browser }}-${{ strategy.job-index }}
+          path: logs/
+          retention-days: 7
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose -f docker-compose.e2e.yml down -v
+          docker system prune -f
+
+  merge-reports:
+    name: Merge Test Reports
+    needs: e2e-tests
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: all-reports/
+      
+      - name: Merge test results
+        run: |
+          npm install -g playwright-merge-html-reports
+          
+          # Merge HTML reports
+          npx playwright-merge-html-reports \
+            --inputFolder all-reports \
+            --outputFolder merged-report
+      
+      - name: Upload merged report
+        uses: actions/upload-artifact@v3
+        with:
+          name: merged-playwright-report
+          path: merged-report/
+          retention-days: 30
+      
+      - name: Generate summary
+        run: |
+          echo "## E2E Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Parse and display results
+          total_passed=0
+          total_failed=0
+          total_skipped=0
+          
+          for file in all-reports/test-results-*/results.json; do
+            if [ -f "$file" ]; then
+              passed=$(jq '.stats.expected' "$file" 2>/dev/null || echo 0)
+              failed=$(jq '.stats.unexpected' "$file" 2>/dev/null || echo 0)
+              skipped=$(jq '.stats.skipped' "$file" 2>/dev/null || echo 0)
+              
+              total_passed=$((total_passed + passed))
+              total_failed=$((total_failed + failed))
+              total_skipped=$((total_skipped + skipped))
+            fi
+          done
+          
+          total=$((total_passed + total_failed + total_skipped))
+          
+          echo "| Metric | Count | Percentage |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ Passed | $total_passed | $(echo "scale=1; $total_passed * 100 / $total" | bc)% |" >> $GITHUB_STEP_SUMMARY
+          echo "| ❌ Failed | $total_failed | $(echo "scale=1; $total_failed * 100 / $total" | bc)% |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⏭️ Skipped | $total_skipped | $(echo "scale=1; $total_skipped * 100 / $total" | bc)% |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total** | **$total** | **100%** |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ $total_failed -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Some tests failed. Please check the artifacts for details.**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **All tests passed successfully!**" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync(process.env.GITHUB_STEP_SUMMARY, 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
+
+  deploy-report:
+    name: Deploy Test Report
+    needs: merge-reports
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Download merged report
+        uses: actions/download-artifact@v3
+        with:
+          name: merged-playwright-report
+          path: report/
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./report
+          destination_dir: e2e-reports/${{ github.run_number }}
+      
+      - name: Update latest report link
+        run: |
+          echo "📊 [View Test Report](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/e2e-reports/${{ github.run_number }})" >> $GITHUB_STEP_SUMMARY

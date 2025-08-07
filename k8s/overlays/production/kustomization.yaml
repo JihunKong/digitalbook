@@ -1,0 +1,43 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+bases:
+  - ../../base
+
+namespace: ai-textbook-prod
+
+namePrefix: prod-
+
+replicas:
+  - name: frontend
+    count: 3
+  - name: backend
+    count: 5
+  - name: nginx
+    count: 3
+
+patchesStrategicMerge:
+  - deployment-patches.yaml
+  - hpa-patches.yaml
+
+configMapGenerator:
+  - name: app-config
+    behavior: merge
+    literals:
+      - NODE_ENV=production
+      - LOG_LEVEL=warn
+      - NEXT_PUBLIC_API_URL=https://api.ai-textbook.example.com
+
+secretGenerator:
+  - name: app-secrets
+    behavior: merge
+    literals:
+      - DATABASE_URL=postgresql://produser:prodpass@prod-postgres:5432/ai_textbook_prod
+
+images:
+  - name: ai-textbook-frontend
+    newName: your-registry/ai-textbook-frontend
+    newTag: v1.0.0
+  - name: ai-textbook-backend
+    newName: your-registry/ai-textbook-backend
+    newTag: v1.0.0

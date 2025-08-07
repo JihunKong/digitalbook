@@ -1,0 +1,555 @@
+import { Request, Response, NextFunction } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
+import { getDatabase } from '../config/database';
+import { getRedis } from '../config/redis';
+import { AppError } from '../middlewares/errorHandler';
+import { logger } from '../utils/logger';
+import { UserRole } from '@prisma/client';
+
+// JWT 토큰 페이로드 타입
+interface TokenPayload {
+  userId: string;
+  email: string;
+  name: string;
+  role: UserRole;
+}
+
+// 확장된 Request 타입
+interface AuthRequest extends Request {
+  user?: TokenPayload & { sessionId?: string };
+}
+
+class UnifiedAuthController {
+  private readonly JWT_SECRET = process.env.JWT_SECRET;
+  private readonly JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+  private readonly ACCESS_TOKEN_EXPIRES = process.env.ACCESS_TOKEN_EXPIRES || '15m';
+  private readonly REFRESH_TOKEN_EXPIRES = process.env.REFRESH_TOKEN_EXPIRES || '7d';
+  private readonly MAX_SESSIONS_PER_USER = 5;
+
+  constructor() {
+    // 환경변수 검증
+    if (!this.JWT_SECRET || !this.JWT_REFRESH_SECRET) {
+      throw new Error('JWT secrets must be defined in environment variables');
+    }
+  }
+
+  /**
+   * 회원가입
+   */
+  async register(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email, password, name, role = 'STUDENT', profileData } = req.body;
+      const prisma = getDatabase();
+
+      // 이메일 중복 확인
+      const existingUser = await prisma.user.findUnique({
+        where: { email }
+      });
+
+      if (existingUser) {
+        throw new AppError('이미 사용 중인 이메일입니다', 400);
+      }
+
+      // 비밀번호 암호화
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      // 트랜잭션으로 사용자 및 프로필 생성
+      const user = await prisma.$transaction(async (tx) => {
+        // User 생성
+        const newUser = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            name,
+            role: role as UserRole,
+            isActive: true
+          }
+        });
+
+        // 역할별 프로필 생성
+        switch (role) {
+          case 'TEACHER':
+            await tx.teacherProfile.create({
+              data: {
+                userId: newUser.id,
+                school: profileData?.school || '',
+                subject: profileData?.subject || '',
+                grade: profileData?.grade || ''
+              }
+            });
+            break;
+          
+          case 'STUDENT':
+            await tx.studentProfile.create({
+              data: {
+                userId: newUser.id,
+                studentId: profileData?.studentId || `S${Date.now()}`,
+                school: profileData?.school || '',
+                grade: profileData?.grade || '',
+                className: profileData?.className || ''
+              }
+            });
+            break;
+          
+          case 'ADMIN':
+            await tx.adminProfile.create({
+              data: {
+                userId: newUser.id,
+                department: profileData?.department || '시스템 관리',
+                permissions: profileData?.permissions || {}
+              }
+            });
+            break;
+        }
+
+        // 활동 로그 기록
+        await tx.userActivity.create({
+          data: {
+            userId: newUser.id,
+            action: 'REGISTER',
+            details: { role, registrationMethod: 'email' },
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent']
+          }
+        });
+
+        return newUser;
+      });
+
+      // 환영 알림 생성
+      await prisma.notification.create({
+        data: {
+          userId: user.id,
+          title: '환영합니다!',
+          message: `${user.name}님, 한국 디지털 교과서 플랫폼에 오신 것을 환영합니다.`,
+          type: 'SYSTEM'
+        }
+      });
+
+      logger.info(`New user registered: ${user.email} (${role})`);
+
+      res.status(201).json({
+        success: true,
+        message: '회원가입이 완료되었습니다',
+        data: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * 로그인
+   */
+  async login(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email, password, rememberMe = false } = req.body;
+      const prisma = getDatabase();
+      const redis = getRedis();
+
+      // 사용자 조회 (프로필 포함)
+      const user = await prisma.user.findUnique({
+        where: { email },
+        include: {
+          teacherProfile: true,
+          studentProfile: true,
+          adminProfile: true
+        }
+      });
+
+      if (!user || !user.password) {
+        throw new AppError('이메일 또는 비밀번호가 올바르지 않습니다', 401);
+      }
+
+      // 계정 활성화 확인
+      if (!user.isActive) {
+        throw new AppError('비활성화된 계정입니다. 관리자에게 문의하세요', 403);
+      }
+
+      // 비밀번호 검증
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        throw new AppError('이메일 또는 비밀번호가 올바르지 않습니다', 401);
+      }
+
+      // 토큰 페이로드 생성
+      const tokenPayload: TokenPayload = {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      };
+
+      // 토큰 생성
+      const accessToken = jwt.sign(tokenPayload, this.JWT_SECRET!, {
+        expiresIn: this.ACCESS_TOKEN_EXPIRES
+      });
+
+      const refreshToken = jwt.sign(tokenPayload, this.JWT_REFRESH_SECRET!, {
+        expiresIn: rememberMe ? '30d' : this.REFRESH_TOKEN_EXPIRES
+      });
+
+      // 세션 생성 및 저장
+      const sessionId = uuidv4();
+      const sessionData = {
+        userId: user.id,
+        refreshToken,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+        createdAt: new Date().toISOString()
+      };
+
+      // Redis에 세션 저장
+      await redis.setex(
+        `session:${sessionId}`,
+        rememberMe ? 30 * 24 * 60 * 60 : 7 * 24 * 60 * 60,
+        JSON.stringify(sessionData)
+      );
+
+      // DB에도 세션 기록 (감사 목적)
+      await prisma.session.create({
+        data: {
+          token: sessionId,
+          userId: user.id,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'] || '',
+          expiresAt: new Date(Date.now() + (rememberMe ? 30 : 7) * 24 * 60 * 60 * 1000)
+        }
+      });
+
+      // 세션 수 제한 (최대 5개)
+      await this.limitUserSessions(user.id);
+
+      // 마지막 로그인 시간 업데이트
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() }
+      });
+
+      // 활동 로그 기록
+      await prisma.userActivity.create({
+        data: {
+          userId: user.id,
+          action: 'LOGIN',
+          details: { rememberMe },
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']
+        }
+      });
+
+      // httpOnly 쿠키로 토큰 전송
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        path: '/'
+      };
+
+      res.cookie('accessToken', accessToken, {
+        ...cookieOptions,
+        maxAge: 15 * 60 * 1000 // 15분
+      });
+
+      res.cookie('refreshToken', refreshToken, {
+        ...cookieOptions,
+        maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000,
+        path: '/api/auth/refresh' // refresh 엔드포인트에서만 접근 가능
+      });
+
+      res.cookie('sessionId', sessionId, {
+        ...cookieOptions,
+        maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000
+      });
+
+      logger.info(`User logged in: ${user.email}`);
+
+      // 프로필 정보 구성
+      let profile = null;
+      if (user.teacherProfile) {
+        profile = user.teacherProfile;
+      } else if (user.studentProfile) {
+        profile = user.studentProfile;
+      } else if (user.adminProfile) {
+        profile = user.adminProfile;
+      }
+
+      res.json({
+        success: true,
+        message: '로그인 성공',
+        data: {
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            profile
+          },
+          // API 테스트를 위해 토큰도 응답에 포함 (개발 환경에서만)
+          ...(process.env.NODE_ENV === 'development' && {
+            tokens: { accessToken, refreshToken, sessionId }
+          })
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * 토큰 갱신
+   */
+  async refreshToken(req: Request, res: Response, next: NextFunction) {
+    try {
+      const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+      const sessionId = req.cookies?.sessionId || req.body?.sessionId;
+
+      if (!refreshToken || !sessionId) {
+        throw new AppError('갱신 토큰이 없습니다', 401);
+      }
+
+      const redis = getRedis();
+      const prisma = getDatabase();
+
+      // Redis에서 세션 확인
+      const sessionData = await redis.get(`session:${sessionId}`);
+      if (!sessionData) {
+        throw new AppError('유효하지 않은 세션입니다', 401);
+      }
+
+      const session = JSON.parse(sessionData);
+      if (session.refreshToken !== refreshToken) {
+        throw new AppError('토큰이 일치하지 않습니다', 401);
+      }
+
+      // 토큰 검증
+      const decoded = jwt.verify(refreshToken, this.JWT_REFRESH_SECRET!) as TokenPayload;
+
+      // 사용자 정보 재조회
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId }
+      });
+
+      if (!user || !user.isActive) {
+        throw new AppError('사용자를 찾을 수 없습니다', 404);
+      }
+
+      // 새 액세스 토큰 생성
+      const newAccessToken = jwt.sign(
+        {
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role
+        },
+        this.JWT_SECRET!,
+        { expiresIn: this.ACCESS_TOKEN_EXPIRES }
+      );
+
+      // 쿠키 업데이트
+      res.cookie('accessToken', newAccessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 15 * 60 * 1000,
+        path: '/'
+      });
+
+      res.json({
+        success: true,
+        message: '토큰이 갱신되었습니다',
+        data: {
+          ...(process.env.NODE_ENV === 'development' && {
+            accessToken: newAccessToken
+          })
+        }
+      });
+    } catch (error) {
+      if (error instanceof jwt.TokenExpiredError) {
+        next(new AppError('갱신 토큰이 만료되었습니다', 401));
+      } else {
+        next(error);
+      }
+    }
+  }
+
+  /**
+   * 로그아웃
+   */
+  async logout(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const sessionId = req.cookies?.sessionId;
+      const redis = getRedis();
+      const prisma = getDatabase();
+
+      if (sessionId) {
+        // Redis에서 세션 삭제
+        await redis.del(`session:${sessionId}`);
+
+        // DB에서 세션 삭제
+        await prisma.session.deleteMany({
+          where: { token: sessionId }
+        });
+      }
+
+      // 사용자 활동 로그 (인증된 경우에만)
+      if (req.user?.userId) {
+        await prisma.userActivity.create({
+          data: {
+            userId: req.user.userId,
+            action: 'LOGOUT',
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent']
+          }
+        });
+      }
+
+      // 쿠키 삭제
+      res.clearCookie('accessToken', { path: '/' });
+      res.clearCookie('refreshToken', { path: '/api/auth/refresh' });
+      res.clearCookie('sessionId', { path: '/' });
+
+      res.json({
+        success: true,
+        message: '로그아웃되었습니다'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * 현재 사용자 정보 조회
+   */
+  async getCurrentUser(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user) {
+        throw new AppError('인증되지 않은 요청입니다', 401);
+      }
+
+      const prisma = getDatabase();
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.userId },
+        include: {
+          teacherProfile: true,
+          studentProfile: true,
+          adminProfile: true
+        }
+      });
+
+      if (!user) {
+        throw new AppError('사용자를 찾을 수 없습니다', 404);
+      }
+
+      // 프로필 정보 구성
+      let profile = null;
+      if (user.teacherProfile) {
+        profile = user.teacherProfile;
+      } else if (user.studentProfile) {
+        profile = user.studentProfile;
+      } else if (user.adminProfile) {
+        profile = user.adminProfile;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          profile,
+          createdAt: user.createdAt,
+          lastLoginAt: user.lastLoginAt
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * 게스트 액세스 생성
+   */
+  async createGuestAccess(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { textbookId, duration = 3600000 } = req.body; // 기본 1시간
+      const prisma = getDatabase();
+
+      // 액세스 코드 생성
+      const accessCode = `GUEST${Date.now().toString(36).toUpperCase()}`;
+
+      // 게스트 액세스 생성
+      const guestAccess = await prisma.guestAccess.create({
+        data: {
+          accessCode,
+          textbookId,
+          expiresAt: new Date(Date.now() + duration),
+          maxQuestions: 50
+        }
+      });
+
+      // 게스트 토큰 생성
+      const guestToken = jwt.sign(
+        {
+          guestId: guestAccess.id,
+          accessCode,
+          role: 'GUEST'
+        },
+        this.JWT_SECRET!,
+        { expiresIn: duration }
+      );
+
+      res.json({
+        success: true,
+        message: '게스트 액세스가 생성되었습니다',
+        data: {
+          accessCode,
+          token: guestToken,
+          expiresAt: guestAccess.expiresAt
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * 사용자 세션 수 제한
+   */
+  private async limitUserSessions(userId: string) {
+    const prisma = getDatabase();
+    const redis = getRedis();
+
+    // 활성 세션 조회
+    const sessions = await prisma.session.findMany({
+      where: {
+        userId,
+        expiresAt: { gt: new Date() }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // 초과 세션 삭제
+    if (sessions.length > this.MAX_SESSIONS_PER_USER) {
+      const sessionsToDelete = sessions.slice(this.MAX_SESSIONS_PER_USER);
+      
+      for (const session of sessionsToDelete) {
+        await redis.del(`session:${session.token}`);
+        await prisma.session.delete({
+          where: { id: session.id }
+        });
+      }
+
+      logger.info(`Deleted ${sessionsToDelete.length} excess sessions for user ${userId}`);
+    }
+  }
+}
+
+export const authController = new UnifiedAuthController();

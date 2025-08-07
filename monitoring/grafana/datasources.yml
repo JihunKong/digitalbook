@@ -1,0 +1,97 @@
+# Grafana Datasources Configuration
+# Korean Digital Textbook Platform
+
+apiVersion: 1
+
+datasources:
+  # Prometheus for metrics
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "30s"
+      httpMethod: POST
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: 2.40.0
+      cacheLevel: 'High'
+      disableMetricsLookup: false
+      incrementalQuerying: true
+      incrementalQueryOverlapWindow: 10m
+      
+  # Loki for logs
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+    jsonData:
+      maxLines: 5000
+      derivedFields:
+        - datasourceName: Jaeger
+          matcherRegex: "traceID=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+          
+  # Jaeger for distributed tracing
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: true
+    jsonData:
+      tracesToLogs:
+        datasourceUid: loki
+        tags: ['job', 'pod', 'namespace']
+        mappedTags: [{ key: 'service.name', value: 'service' }]
+        mapTagNamesEnabled: true
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: true
+        filterBySpanID: false
+        
+  # PostgreSQL for business metrics
+  - name: PostgreSQL
+    type: postgres
+    url: postgres:5432
+    database: digitalbook
+    user: monitoring_user
+    secureJsonData:
+      password: "monitoring_password"
+    jsonData:
+      sslmode: 'disable'
+      maxOpenConns: 100
+      maxIdleConns: 100
+      connMaxLifetime: 14400
+      postgresVersion: 1400
+      timescaledb: false
+      
+  # Elasticsearch for log analysis
+  - name: Elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    database: "digitalbook-*"
+    editable: true
+    jsonData:
+      esVersion: "7.10.0"
+      timeField: "@timestamp"
+      interval: Daily
+      logMessageField: message
+      logLevelField: level
+      maxConcurrentShardRequests: 5
+      
+  # CloudWatch for AWS metrics (if using AWS)
+  - name: CloudWatch
+    type: cloudwatch
+    editable: true
+    jsonData:
+      authType: keys
+      defaultRegion: ap-northeast-2
+    secureJsonData:
+      accessKey: "YOUR_AWS_ACCESS_KEY"
+      secretKey: "YOUR_AWS_SECRET_KEY"

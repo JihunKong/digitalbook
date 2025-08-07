@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # Frontend Application
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend.dev
+    container_name: ai-textbook-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://backend:4000
+    depends_on:
+      - backend
+      - postgres
+      - redis
+    networks:
+      - ai-textbook-network
+    restart: unless-stopped
+
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: ai-textbook-backend
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:digitalbook2024@postgres:5432/digitalbook
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-digitalbook-dev-secret-2024}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-digitalbook-dev-refresh-secret-2024}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-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}
+      - SESSION_SECRET=${SESSION_SECRET:-digitalbook-dev-session-2024}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - ai-textbook-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-textbook-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=digitalbook2024
+      - POSTGRES_DB=digitalbook
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ai-textbook-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ai-textbook-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ai-textbook-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: ai-textbook-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-dev.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - ai-textbook-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  ai-textbook-network:
+    driver: bridge

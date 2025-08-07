@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 국어 디지털 교과서 - 데모</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .bg-gradient-custom {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- 홈페이지 -->
+    <div id="home-page" class="min-h-screen">
+        <div class="bg-gradient-custom text-white p-8">
+            <div class="max-w-4xl mx-auto text-center">
+                <h1 class="text-4xl font-bold mb-4">AI 국어 디지털 교과서</h1>
+                <p class="text-xl mb-8">인공지능이 만드는 새로운 국어 학습의 패러다임</p>
+                
+                <div class="grid md:grid-cols-2 gap-4 mb-8">
+                    <button class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg">
+                        교사로 시작하기
+                    </button>
+                    <button class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg">
+                        학생으로 시작하기
+                    </button>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-4">
+                    <button onclick="showGuestAccess()" class="bg-white text-gray-800 px-6 py-3 rounded-lg hover:bg-gray-100">
+                        📚 접근 코드로 입장
+                    </button>
+                    <button onclick="showExplore()" class="bg-white text-gray-800 px-6 py-3 rounded-lg hover:bg-gray-100">
+                        ⭐ 공개 교과서 둘러보기
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 게스트 접근 페이지 -->
+    <div id="guest-page" class="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span class="text-white text-2xl">📚</span>
+                </div>
+                <h2 class="text-2xl font-bold">학습 시작하기</h2>
+                <p class="text-gray-600 mt-2">선생님이 제공한 접근 코드와 학생 정보를 입력하세요</p>
+            </div>
+            
+            <form id="guest-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">접근 코드</label>
+                    <input type="text" id="accessCode" placeholder="예: TEST123" 
+                           class="w-full p-3 border rounded-lg uppercase" maxlength="6" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">학번</label>
+                    <input type="text" id="studentId" placeholder="예: 20241234" 
+                           class="w-full p-3 border rounded-lg" required>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2">이름</label>
+                    <input type="text" id="studentName" placeholder="홍길동" 
+                           class="w-full p-3 border rounded-lg" required>
+                </div>
+
+                <button type="submit" class="w-full bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700">
+                    🚀 학습 시작
+                </button>
+            </form>
+
+            <div class="mt-6 text-center text-sm text-gray-600">
+                <p>접근 코드가 없으신가요?</p>
+                <p>선생님께 문의하세요</p>
+            </div>
+            
+            <button onclick="showHome()" class="mt-4 text-purple-600 hover:underline">← 돌아가기</button>
+        </div>
+    </div>
+
+    <!-- 교과서 학습 페이지 -->
+    <div id="textbook-page" class="min-h-screen bg-gray-50 hidden">
+        <header class="bg-white border-b px-4 py-3 flex items-center justify-between">
+            <div>
+                <h1 class="text-lg font-semibold">테스트 국어 교과서</h1>
+                <p class="text-sm text-gray-600" id="student-info">테스트 학생 (20241234)</p>
+            </div>
+            <button onclick="showHome()" class="text-gray-600 hover:bg-gray-100 px-3 py-2 rounded">
+                🚪 나가기
+            </button>
+        </header>
+
+        <div class="flex h-screen">
+            <!-- 교과서 콘텐츠 -->
+            <div class="flex-1 p-6">
+                <div class="bg-white rounded-lg shadow p-6 h-full">
+                    <h2 class="text-2xl font-bold mb-4">첫 번째 단원: 우리말의 아름다움</h2>
+                    <div class="prose max-w-none">
+                        <h3>한글의 창제</h3>
+                        <p>세종대왕은 1443년(세종 25년)에 훈민정음을 창제하였습니다.</p>
+                        <p>한글은 세계에서 가장 과학적인 문자 중 하나로 인정받고 있습니다.</p>
+                        
+                        <h4>한글의 특징</h4>
+                        <ul>
+                            <li>표음문자: 소리를 나타내는 문자</li>
+                            <li>자음과 모음의 조합</li>
+                            <li>쉽고 간편한 학습</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mt-6 flex gap-2">
+                        <button class="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300">← 이전</button>
+                        <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">다음 →</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI 채팅 -->
+            <div class="w-1/3 bg-white border-l flex flex-col">
+                <div class="p-4 border-b">
+                    <h3 class="font-semibold flex items-center gap-2">
+                        🤖 AI 튜터
+                    </h3>
+                </div>
+                
+                <div class="flex-1 p-4 overflow-y-auto" id="chat-messages">
+                    <div class="mb-4">
+                        <div class="bg-blue-100 p-3 rounded-lg">
+                            <p class="text-sm">안녕하세요! 한글에 대해 궁금한 것이 있으면 언제든 물어보세요. 😊</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="p-4 border-t">
+                    <div class="flex gap-2">
+                        <input type="text" id="chat-input" placeholder="질문을 입력하세요..." 
+                               class="flex-1 p-2 border rounded-lg">
+                        <button onclick="sendMessage()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                            전송
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 공개 교과서 탐색 페이지 -->
+    <div id="explore-page" class="min-h-screen p-8 hidden">
+        <div class="max-w-6xl mx-auto">
+            <h1 class="text-3xl font-bold mb-2">공개 교과서 둘러보기</h1>
+            <p class="text-gray-600 mb-8">다른 선생님들이 만든 우수한 교과서를 찾아보고 활용해보세요</p>
+
+            <!-- 검색 및 필터 -->
+            <div class="bg-white rounded-lg shadow p-6 mb-8">
+                <div class="flex gap-4">
+                    <input type="text" placeholder="교과서 제목 또는 선생님 이름으로 검색" 
+                           class="flex-1 p-3 border rounded-lg">
+                    <select class="p-3 border rounded-lg">
+                        <option>모든 과목</option>
+                        <option>국어</option>
+                        <option>수학</option>
+                        <option>영어</option>
+                    </select>
+                    <select class="p-3 border rounded-lg">
+                        <option>모든 학년</option>
+                        <option>1학년</option>
+                        <option>2학년</option>
+                        <option>3학년</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 교과서 목록 -->
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="font-bold mb-2">재미있는 국어 여행</h3>
+                    <p class="text-gray-600 mb-4">김선생님</p>
+                    <div class="flex gap-2 mb-4">
+                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">국어</span>
+                        <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">3학년</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="flex-1 bg-gray-100 px-4 py-2 rounded hover:bg-gray-200">👁️ 미리보기</button>
+                        <button class="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">📋 복사</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="font-bold mb-2">창의적 글쓰기</h3>
+                    <p class="text-gray-600 mb-4">이선생님</p>
+                    <div class="flex gap-2 mb-4">
+                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">국어</span>
+                        <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">4학년</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="flex-1 bg-gray-100 px-4 py-2 rounded hover:bg-gray-200">👁️ 미리보기</button>
+                        <button class="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">📋 복사</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="font-bold mb-2">문학의 세계</h3>
+                    <p class="text-gray-600 mb-4">박선생님</p>
+                    <div class="flex gap-2 mb-4">
+                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">국어</span>
+                        <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm">5학년</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="flex-1 bg-gray-100 px-4 py-2 rounded hover:bg-gray-200">👁️ 미리보기</button>
+                        <button class="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">📋 복사</button>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="showHome()" class="mt-8 text-blue-600 hover:underline">← 홈으로 돌아가기</button>
+        </div>
+    </div>
+
+    <script>
+        function showHome() {
+            document.getElementById('home-page').classList.remove('hidden');
+            document.getElementById('guest-page').classList.add('hidden');
+            document.getElementById('textbook-page').classList.add('hidden');
+            document.getElementById('explore-page').classList.add('hidden');
+        }
+
+        function showGuestAccess() {
+            document.getElementById('home-page').classList.add('hidden');
+            document.getElementById('guest-page').classList.remove('hidden');
+        }
+
+        function showExplore() {
+            document.getElementById('home-page').classList.add('hidden');
+            document.getElementById('explore-page').classList.remove('hidden');
+        }
+
+        function showTextbook(studentName, studentId) {
+            document.getElementById('student-info').textContent = `${studentName} (${studentId})`;
+            document.getElementById('guest-page').classList.add('hidden');
+            document.getElementById('textbook-page').classList.remove('hidden');
+        }
+
+        document.getElementById('guest-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const accessCode = document.getElementById('accessCode').value;
+            const studentId = document.getElementById('studentId').value;
+            const studentName = document.getElementById('studentName').value;
+            
+            if (accessCode === 'TEST123') {
+                alert('✅ 접근 성공! 교과서 페이지로 이동합니다.');
+                showTextbook(studentName, studentId);
+            } else {
+                alert('❌ 유효하지 않은 접근 코드입니다.');
+            }
+        });
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            
+            if (message) {
+                const chatMessages = document.getElementById('chat-messages');
+                
+                // 사용자 메시지 추가
+                chatMessages.innerHTML += `
+                    <div class="mb-4 text-right">
+                        <div class="bg-blue-600 text-white p-3 rounded-lg inline-block">
+                            <p class="text-sm">${message}</p>
+                        </div>
+                    </div>
+                `;
+                
+                // AI 응답 시뮬레이션
+                setTimeout(() => {
+                    const responses = [
+                        "좋은 질문이네요! 한글은 정말 과학적인 문자입니다.",
+                        "더 자세히 설명해드릴까요? 궁금한 부분이 있으면 말씀해주세요.",
+                        "이 내용과 관련해서 다른 궁금한 점은 없나요?",
+                        "훌륭합니다! 계속 열심히 공부해보세요! 💪"
+                    ];
+                    
+                    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+                    
+                    chatMessages.innerHTML += `
+                        <div class="mb-4">
+                            <div class="bg-gray-100 p-3 rounded-lg">
+                                <p class="text-sm">${randomResponse}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }, 1000);
+                
+                input.value = '';
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        document.getElementById('chat-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>

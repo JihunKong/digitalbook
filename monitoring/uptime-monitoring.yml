@@ -1,0 +1,177 @@
+# Uptime Monitoring Configuration
+# Korean Digital Textbook Platform
+
+monitors:
+  # Main Application
+  - name: "Digital Textbook Platform - Main Site"
+    url: "https://xn--220bu63c.com"
+    type: "https"
+    interval: 60  # seconds
+    timeout: 30
+    expected_status: 200
+    alert_contacts:
+      - email: "oncall@digitalbook.com"
+      - slack: "#uptime-alerts"
+    ssl_check: true
+    ssl_expiry_days: 30
+    
+  # Frontend Health Check
+  - name: "Frontend Next.js App"
+    url: "https://xn--220bu63c.com/api/health"
+    type: "https"
+    interval: 60
+    timeout: 10
+    expected_status: 200
+    expected_response: "OK"
+    
+  # Backend API Health
+  - name: "Backend API Server"
+    url: "https://xn--220bu63c.com/api/v1/health"
+    type: "https"
+    interval: 30
+    timeout: 10
+    expected_status: 200
+    expected_json:
+      status: "healthy"
+      database: "connected"
+      redis: "connected"
+    
+  # Database Connectivity
+  - name: "PostgreSQL Database"
+    type: "tcp"
+    host: "localhost"
+    port: 5432
+    interval: 60
+    timeout: 5
+    
+  # Redis Cache
+  - name: "Redis Cache Server"
+    type: "tcp"
+    host: "localhost"
+    port: 6379
+    interval: 60
+    timeout: 5
+    
+  # Authentication Service
+  - name: "Authentication Endpoint"
+    url: "https://xn--220bu63c.com/api/auth/verify"
+    type: "https"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+    body: '{"test": true}'
+    interval: 120
+    timeout: 10
+    expected_status: 401  # Expected when no token provided
+    
+  # AI Service Health
+  - name: "AI Service Availability"
+    url: "https://xn--220bu63c.com/api/ai/health"
+    type: "https"
+    interval: 300
+    timeout: 30
+    expected_status: 200
+    
+  # Static Assets CDN
+  - name: "Static Assets Availability"
+    url: "https://xn--220bu63c.com/static/logo.png"
+    type: "https"
+    interval: 300
+    timeout: 10
+    expected_status: 200
+    
+  # WebSocket Connection
+  - name: "WebSocket Service"
+    url: "wss://xn--220bu63c.com/socket.io/"
+    type: "websocket"
+    interval: 120
+    timeout: 10
+    
+  # Critical User Flows
+  - name: "User Login Flow"
+    type: "synthetic"
+    script: |
+      1. GET https://xn--220bu63c.com/login
+      2. POST https://xn--220bu63c.com/api/auth/login
+      3. GET https://xn--220bu63c.com/dashboard
+    interval: 300
+    timeout: 30
+    
+  - name: "Textbook Creation Flow"
+    type: "synthetic"
+    script: |
+      1. POST https://xn--220bu63c.com/api/textbooks/create
+      2. GET https://xn--220bu63c.com/api/textbooks/{id}
+      3. GET https://xn--220bu63c.com/api/textbooks/{id}/content
+    interval: 600
+    timeout: 60
+
+# Alert Configuration
+alerts:
+  escalation_policy:
+    - level: 1
+      after_minutes: 0
+      contacts:
+        - slack: "#uptime-alerts"
+    - level: 2
+      after_minutes: 5
+      contacts:
+        - email: "team@digitalbook.com"
+        - slack: "#critical-alerts"
+    - level: 3
+      after_minutes: 15
+      contacts:
+        - phone: "+82-10-XXXX-XXXX"
+        - pagerduty: "critical"
+        
+  maintenance_windows:
+    - name: "Weekly Maintenance"
+      day: "Sunday"
+      start_time: "03:00"
+      end_time: "04:00"
+      timezone: "Asia/Seoul"
+      
+# SLA Targets
+sla:
+  uptime_target: 99.9  # percent
+  response_time_target: 1000  # milliseconds
+  error_rate_target: 0.1  # percent
+  
+# Status Page Configuration
+status_page:
+  enabled: true
+  url: "https://status.xn--220bu63c.com"
+  components:
+    - name: "Web Application"
+      monitors: ["Digital Textbook Platform - Main Site", "Frontend Next.js App"]
+    - name: "API Services"
+      monitors: ["Backend API Server", "Authentication Endpoint"]
+    - name: "AI Features"
+      monitors: ["AI Service Availability"]
+    - name: "Database"
+      monitors: ["PostgreSQL Database"]
+    - name: "Cache"
+      monitors: ["Redis Cache Server"]
+      
+# Performance Benchmarks
+performance:
+  thresholds:
+    - monitor: "Digital Textbook Platform - Main Site"
+      response_time_warning: 2000  # ms
+      response_time_critical: 5000  # ms
+    - monitor: "Backend API Server"
+      response_time_warning: 500  # ms
+      response_time_critical: 1000  # ms
+    - monitor: "AI Service Availability"
+      response_time_warning: 5000  # ms
+      response_time_critical: 10000  # ms
+      
+# Geographic Monitoring Locations
+locations:
+  - seoul
+  - tokyo
+  - singapore
+  - sydney
+  - san-francisco
+  - london
+  - frankfurt

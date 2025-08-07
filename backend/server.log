@@ -1,0 +1,357 @@
+
+> ai-textbook-backend@1.0.0 dev
+> tsx watch src/index.ts
+
+/Users/jihunkong/DigitalBook/backend/node_modules/express/lib/router/route.js:216
+        throw new Error(msg);
+              ^
+
+Error: Route.get() requires a callback function but got a [object Undefined]
+    at Route.<computed> [as get] (/Users/jihunkong/DigitalBook/backend/node_modules/express/lib/router/route.js:216:15)
+    at proto.<computed> [as get] (/Users/jihunkong/DigitalBook/backend/node_modules/express/lib/router/index.js:521:19)
+    at import_textbook (/Users/jihunkong/DigitalBook/backend/src/routes/textbook.routes.ts:9:8)
+    at Object.<anonymous> (/Users/jihunkong/DigitalBook/backend/src/routes/textbook.routes.ts:101:16)
+    at Module._compile (node:internal/modules/cjs/loader:1734:14)
+    at Object.transformer (/Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1104)
+    at Module.load (node:internal/modules/cjs/loader:1469:32)
+    at Function._load (node:internal/modules/cjs/loader:1286:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+
+Node.js v23.11.0
+오후 12:12:05 [tsx] change in ./src/routes/textbook.routes.ts Rerunning...
+c/Users/jihunkong/DigitalBook/backend/src/routes/textbook.routes.ts:23
+  authenticate,
+  ^
+
+
+ReferenceError: authorize is not defined
+    at import_textbook (/Users/jihunkong/DigitalBook/backend/src/routes/textbook.routes.ts:23:3)
+    at Object.<anonymous> (/Users/jihunkong/DigitalBook/backend/src/routes/textbook.routes.ts:101:16)
+    at Module._compile (node:internal/modules/cjs/loader:1734:14)
+    at Object.transformer (/Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1104)
+    at Module.load (node:internal/modules/cjs/loader:1469:32)
+    at Function._load (node:internal/modules/cjs/loader:1286:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1491:12)
+    at require (node:internal/modules/helpers:135:16)
+
+Node.js v23.11.0
+오후 12:12:51 [tsx] change in ./src/middlewares/auth.unified.ts Rerunning...
+c/Users/jihunkong/DigitalBook/backend/src/routes/textbook.routes.ts:23
+  authenticate,
+  ^
+
+
+ReferenceError: authorize is not defined
+    at import_textbook (/Users/jihunkong/DigitalBook/backend/src/routes/textbook.routes.ts:23:3)
+    at Object.<anonymous> (/Users/jihunkong/DigitalBook/backend/src/routes/textbook.routes.ts:101:16)
+    at Module._compile (node:internal/modules/cjs/loader:1734:14)
+    at Object.transformer (/Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1104)
+    at Module.load (node:internal/modules/cjs/loader:1469:32)
+    at Function._load (node:internal/modules/cjs/loader:1286:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1491:12)
+    at require (node:internal/modules/helpers:135:16)
+
+Node.js v23.11.0
+오후 12:12:59 [tsx] change in ./src/routes/textbook.routes.ts Rerunning...
+cnode:internal/modules/cjs/loader:1405
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module '../controllers/class.controller.new'
+Require stack:
+- /Users/jihunkong/DigitalBook/backend/src/routes/class.routes.ts
+- /Users/jihunkong/DigitalBook/backend/src/routes/index.ts
+- /Users/jihunkong/DigitalBook/backend/src/index.ts
+    at node:internal/modules/cjs/loader:1405:15
+    at nextResolveSimple (/Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-D46fvsV_.cjs:4:1004)
+    at /Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-D46fvsV_.cjs:3:2630
+    at /Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1542
+    at resolveTsPaths (/Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-D46fvsV_.cjs:4:760)
+    at /Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-D46fvsV_.cjs:4:1102
+    at m._resolveFilename (file:///Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-B7jrtLTO.mjs:1:789)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1061:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1066:22)
+    at Function._load (node:internal/modules/cjs/loader:1215:37) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/jihunkong/DigitalBook/backend/src/routes/class.routes.ts',
+    '/Users/jihunkong/DigitalBook/backend/src/routes/index.ts',
+    '/Users/jihunkong/DigitalBook/backend/src/index.ts'
+  ]
+}
+
+Node.js v23.11.0
+오후 12:13:13 [tsx] change in ./src/routes/class.routes.ts Rerunning...
+c/Users/jihunkong/DigitalBook/backend/node_modules/express/lib/router/route.js:216
+        throw new Error(msg);
+              ^
+
+Error: Route.post() requires a callback function but got a [object Undefined]
+    at Route.<computed> [as post] (/Users/jihunkong/DigitalBook/backend/node_modules/express/lib/router/route.js:216:15)
+    at proto.<computed> [as post] (/Users/jihunkong/DigitalBook/backend/node_modules/express/lib/router/index.js:521:19)
+    at Joi (/Users/jihunkong/DigitalBook/backend/src/routes/guest.routes.ts:28:8)
+    at Object.<anonymous> (/Users/jihunkong/DigitalBook/backend/src/routes/guest.routes.ts:62:16)
+    at Module._compile (node:internal/modules/cjs/loader:1734:14)
+    at Object.transformer (/Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1104)
+    at Module.load (node:internal/modules/cjs/loader:1469:32)
+    at Function._load (node:internal/modules/cjs/loader:1286:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+
+Node.js v23.11.0
+오후 12:13:42 [tsx] change in ./src/middlewares/auth.unified.ts Rerunning...
+c/Users/jihunkong/DigitalBook/backend/node_modules/express/lib/router/route.js:216
+        throw new Error(msg);
+              ^
+
+Error: Route.post() requires a callback function but got a [object Undefined]
+    at Route.<computed> [as post] (/Users/jihunkong/DigitalBook/backend/node_modules/express/lib/router/route.js:216:15)
+    at proto.<computed> [as post] (/Users/jihunkong/DigitalBook/backend/node_modules/express/lib/router/index.js:521:19)
+    at Joi (/Users/jihunkong/DigitalBook/backend/src/routes/guest.routes.ts:28:8)
+    at Object.<anonymous> (/Users/jihunkong/DigitalBook/backend/src/routes/guest.routes.ts:62:16)
+    at Module._compile (node:internal/modules/cjs/loader:1734:14)
+    at Object.transformer (/Users/jihunkong/DigitalBook/backend/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1104)
+    at Module.load (node:internal/modules/cjs/loader:1469:32)
+    at Function._load (node:internal/modules/cjs/loader:1286:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+
+Node.js v23.11.0
+오후 12:13:49 [tsx] change in ./src/routes/guest.routes.ts Rerunning...
+c2025-08-07 12:13:49.873 [[32minfo[39m]: Starting server initialization...
+2025-08-07 12:13:49.874 [[32minfo[39m]: Connecting to database...
+2025-08-07 12:13:50.307 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.307 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.307 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.307 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.307 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.307 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.307 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.308 [[31merror[39m]: Unhandled Rejection at:
+2025-08-07 12:13:50.308 [[32minfo[39m]: unhandledRejection received, starting graceful shutdown...
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: HTTP server closed
+2025-08-07 12:13:50.309 [[32minfo[39m]: WebSocket server closed
+(node:17943) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 close listeners added to [Server]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+prisma:info Starting a postgresql pool with 21 connections.
+2025-08-07 12:13:50.311 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.311 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.311 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.311 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.311 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.311 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.311 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.311 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.311 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.311 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.311 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.311 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.311 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.311 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.311 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.311 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.311 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.311 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.312 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.312 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.312 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.312 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.312 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.312 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.312 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.312 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.312 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.312 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.312 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.312 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.312 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.312 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.312 [[31merror[39m]: Database connection failed: Can't reach database server at `localhost:5433`
+
+Please make sure your database server is running at `localhost:5433`. {
+  "name": "PrismaClientInitializationError",
+  "clientVersion": "5.22.0",
+  "errorCode": "P1001",
+  "stack": "PrismaClientInitializationError: Can't reach database server at `localhost:5433`\n\nPlease make sure your database server is running at `localhost:5433`.\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)"
+}
+2025-08-07 12:13:50.312 [[33mwarn[39m]: Continuing without database connection for development...
+2025-08-07 12:13:50.312 [[32minfo[39m]: Database connected successfully
+2025-08-07 12:13:50.312 [[32minfo[39m]: Connecting to Redis...
+2025-08-07 12:13:50.312 [[32minfo[39m]: Redis connected successfully
+2025-08-07 12:13:50.312 [[32minfo[39m]: Initializing WebSocket service...
+2025-08-07 12:13:50.313 [[32minfo[39m]: WebSocket service initialized
+2025-08-07 12:13:50.313 [[32minfo[39m]: Starting cron jobs...
+2025-08-07 12:13:50.314 [[32minfo[39m]: Cron jobs initialized
+2025-08-07 12:13:50.314 [[31merror[39m]: Error during graceful shutdown: Cannot read properties of undefined (reading '$disconnect') {
+  "stack": "TypeError: Cannot read properties of undefined (reading '$disconnect')\n    at <anonymous> (/Users/jihunkong/DigitalBook/backend/src/index.ts:249:48)\n    at async <anonymous> (/Users/jihunkong/DigitalBook/backend/src/index.ts:249:7)"
+}

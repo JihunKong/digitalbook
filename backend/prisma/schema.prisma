@@ -1,0 +1,416 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// 통합 User 모델 (Admin, Teacher, Student)
+// ==========================================
+model User {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  password      String?     // Guest나 소셜 로그인은 null 가능
+  name          String
+  role          UserRole    @default(STUDENT)
+  isActive      Boolean     @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  // 프로필 정보 (역할별)
+  teacherProfile TeacherProfile?
+  studentProfile StudentProfile?
+  adminProfile   AdminProfile?
+  
+  // 관계
+  sessions       Session[]
+  notifications  Notification[]
+  activities     UserActivity[]
+  
+  @@index([email])
+  @@index([role])
+}
+
+enum UserRole {
+  ADMIN
+  TEACHER
+  STUDENT
+  GUEST
+}
+
+// ==========================================
+// 역할별 프로필
+// ==========================================
+model TeacherProfile {
+  id            String     @id @default(uuid())
+  userId        String     @unique
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  school        String?
+  subject       String?
+  grade         String?
+  bio           String?    @db.Text
+  
+  // 교사 관련 데이터
+  classes       Class[]
+  textbooks     Textbook[]
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model StudentProfile {
+  id            String     @id @default(uuid())
+  userId        String     @unique
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  studentId     String?    // 학번
+  school        String?
+  grade         String?
+  className     String?
+  
+  // 학생 관련 데이터
+  enrollments   ClassEnrollment[]
+  submissions   Assignment[]
+  studyRecords  StudyRecord[]
+  questions     Question[]
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model AdminProfile {
+  id            String     @id @default(uuid())
+  userId        String     @unique
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  department    String?
+  permissions   Json?      // 세부 권한 설정
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+// ==========================================
+// 교육 관련 모델
+// ==========================================
+model Class {
+  id            String     @id @default(uuid())
+  code          String     @unique @db.VarChar(6)
+  name          String
+  description   String?    @db.Text
+  teacherId     String
+  teacher       TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  
+  // 수업 설정
+  subject       String?
+  grade         String?
+  semester      String?
+  isActive      Boolean    @default(true)
+  expiresAt     DateTime?
+  
+  // 관계
+  enrollments   ClassEnrollment[]
+  textbooks     ClassTextbook[]
+  assignments   Assignment[]
+  announcements Announcement[]
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@index([code])
+  @@index([teacherId])
+}
+
+model ClassEnrollment {
+  id            String     @id @default(uuid())
+  classId       String
+  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  enrolledAt    DateTime   @default(now())
+  isActive      Boolean    @default(true)
+  
+  @@unique([classId, studentId])
+  @@index([classId])
+  @@index([studentId])
+}
+
+model Textbook {
+  id            String     @id @default(uuid())
+  title         String
+  description   String?    @db.Text
+  content       Json       // 구조화된 교과서 내용
+  metadata      Json?      // 추가 메타데이터
+  
+  authorId      String
+  author        TeacherProfile @relation(fields: [authorId], references: [id])
+  
+  // 공개 설정
+  isPublic      Boolean    @default(false)
+  isTemplate    Boolean    @default(false)
+  
+  // AI 생성 정보
+  aiGenerated   Boolean    @default(false)
+  aiModel       String?
+  aiPrompt      String?    @db.Text
+  
+  // 관계
+  classes       ClassTextbook[]
+  pages         TextbookPage[]
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@index([authorId])
+  @@index([isPublic])
+}
+
+model ClassTextbook {
+  id            String     @id @default(uuid())
+  classId       String
+  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  textbookId    String
+  textbook      Textbook   @relation(fields: [textbookId], references: [id], onDelete: Cascade)
+  
+  assignedAt    DateTime   @default(now())
+  
+  @@unique([classId, textbookId])
+}
+
+model TextbookPage {
+  id            String     @id @default(uuid())
+  textbookId    String
+  textbook      Textbook   @relation(fields: [textbookId], references: [id], onDelete: Cascade)
+  
+  pageNumber    Int
+  title         String?
+  content       Json       // 페이지 내용 (텍스트, 이미지, 비디오 등)
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@unique([textbookId, pageNumber])
+  @@index([textbookId])
+}
+
+// ==========================================
+// 과제 및 평가
+// ==========================================
+model Assignment {
+  id            String     @id @default(uuid())
+  classId       String
+  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  
+  title         String
+  description   String     @db.Text
+  type          AssignmentType
+  
+  dueDate       DateTime?
+  points        Int?
+  
+  // 제출 정보
+  studentId     String?
+  student       StudentProfile? @relation(fields: [studentId], references: [id])
+  submittedAt   DateTime?
+  submission    Json?      // 제출 내용
+  feedback      String?    @db.Text
+  score         Int?
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@index([classId])
+  @@index([studentId])
+}
+
+enum AssignmentType {
+  HOMEWORK
+  QUIZ
+  TEST
+  PROJECT
+  ESSAY
+}
+
+// ==========================================
+// 학습 기록 및 분석
+// ==========================================
+model StudyRecord {
+  id            String     @id @default(uuid())
+  studentId     String
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  activityType  String     // 읽기, 문제풀기, 토론 등
+  activityData  Json       // 활동 상세 데이터
+  duration      Int?       // 활동 시간 (초)
+  score         Float?     // 점수 (해당되는 경우)
+  
+  createdAt     DateTime   @default(now())
+  
+  @@index([studentId])
+  @@index([createdAt])
+}
+
+// ==========================================
+// 질문 및 답변
+// ==========================================
+model Question {
+  id            String     @id @default(uuid())
+  studentId     String
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  question      String     @db.Text
+  context       Json?      // 질문 컨텍스트 (페이지, 단원 등)
+  
+  // AI 응답
+  aiResponse    String?    @db.Text
+  aiModel       String?
+  responseTime  Int?       // 응답 시간 (ms)
+  
+  // 질문 분류
+  questionType  QuestionType
+  difficulty    Int?       // 1-5
+  
+  createdAt     DateTime   @default(now())
+  
+  @@index([studentId])
+  @@index([createdAt])
+}
+
+enum QuestionType {
+  KNOWLEDGE     // 단순 지식 질문
+  REASONING     // 추론 질문  
+  CRITICAL      // 비판적 사고 질문
+  CREATIVE      // 창조적 사고 질문
+  REFLECTION    // 성찰적 질문
+}
+
+// ==========================================
+// 알림 및 공지
+// ==========================================
+model Notification {
+  id            String     @id @default(uuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title         String
+  message       String     @db.Text
+  type          NotificationType
+  isRead        Boolean    @default(false)
+  metadata      Json?      // 추가 데이터
+  
+  createdAt     DateTime   @default(now())
+  
+  @@index([userId])
+  @@index([isRead])
+}
+
+enum NotificationType {
+  ASSIGNMENT
+  ANNOUNCEMENT
+  GRADE
+  MESSAGE
+  SYSTEM
+}
+
+model Announcement {
+  id            String     @id @default(uuid())
+  classId       String
+  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  
+  title         String
+  content       String     @db.Text
+  isPinned      Boolean    @default(false)
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@index([classId])
+}
+
+// ==========================================
+// 사용자 활동 추적
+// ==========================================
+model UserActivity {
+  id            String     @id @default(uuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  action        String     // login, logout, view_page, submit_assignment 등
+  details       Json?      // 활동 상세 정보
+  ipAddress     String?
+  userAgent     String?
+  
+  createdAt     DateTime   @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ==========================================
+// 세션 관리
+// ==========================================
+model Session {
+  id            String     @id @default(uuid())
+  token         String     @unique
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  ipAddress     String?
+  userAgent     String?
+  lastActivity  DateTime   @default(now())
+  expiresAt     DateTime
+  
+  createdAt     DateTime   @default(now())
+  
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ==========================================
+// 문서 및 미디어
+// ==========================================
+model Document {
+  id            String     @id @default(uuid())
+  filename      String
+  originalName  String
+  mimeType      String
+  size          Int
+  path          String     // 파일 저장 경로
+  
+  uploaderId    String
+  metadata      Json?      // 추가 메타데이터
+  
+  createdAt     DateTime   @default(now())
+  
+  @@index([uploaderId])
+}
+
+// ==========================================
+// 게스트 액세스 (기존 호환성)
+// ==========================================
+model GuestAccess {
+  id            String     @id @default(uuid())
+  accessCode    String     @unique
+  textbookId    String?
+  
+  expiresAt     DateTime
+  maxQuestions  Int        @default(50)
+  questionsUsed Int        @default(0)
+  
+  metadata      Json?      // 추가 정보
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@index([accessCode])
+  @@index([expiresAt])
+}

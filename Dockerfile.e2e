@@ -1,0 +1,79 @@
+# Multi-stage build for optimized E2E testing
+# Stage 1: Base image with Playwright browsers
+FROM mcr.microsoft.com/playwright:v1.40.0-jammy AS base
+
+# Set working directory
+WORKDIR /app
+
+# Install additional dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    vim \
+    netcat \
+    && rm -rf /var/lib/apt/lists/*
+
+# Stage 2: Dependencies installation
+FROM base AS deps
+
+# Copy package files
+COPY package*.json ./
+COPY playwright.config.ts ./
+
+# Install Node dependencies with better caching
+RUN npm ci --prefer-offline --no-audit --progress=false
+
+# Install Playwright browsers with deps
+RUN npx playwright install --with-deps chromium firefox webkit
+
+# Stage 3: Test runner
+FROM deps AS runner
+
+# Create non-root user for security
+RUN groupadd -r playwright && useradd -r -g playwright -G audio,video playwright \
+    && mkdir -p /home/playwright/Downloads \
+    && chown -R playwright:playwright /home/playwright \
+    && chown -R playwright:playwright /app
+
+# Copy test files and source code
+COPY --chown=playwright:playwright tests ./tests
+COPY --chown=playwright:playwright app ./app
+COPY --chown=playwright:playwright components ./components
+COPY --chown=playwright:playwright lib ./lib
+COPY --chown=playwright:playwright public ./public
+COPY --chown=playwright:playwright styles ./styles
+COPY --chown=playwright:playwright next.config.js ./
+COPY --chown=playwright:playwright tsconfig.json ./
+COPY --chown=playwright:playwright .env.test ./.env.test
+
+# Create directories for test artifacts with proper permissions
+RUN mkdir -p /app/playwright-report /app/test-results /app/trace /app/videos /app/screenshots \
+    && chown -R playwright:playwright /app/playwright-report \
+    && chown -R playwright:playwright /app/test-results \
+    && chown -R playwright:playwright /app/trace \
+    && chown -R playwright:playwright /app/videos \
+    && chown -R playwright:playwright /app/screenshots
+
+# Switch to non-root user
+USER playwright
+
+# Set environment variables for containerized testing
+ENV CI=true \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    NODE_ENV=test \
+    # Performance optimizations
+    NODE_OPTIONS="--max-old-space-size=4096" \
+    # Artifact paths
+    PLAYWRIGHT_ARTIFACTS_PATH=/app/test-results \
+    PLAYWRIGHT_REPORT_PATH=/app/playwright-report \
+    PLAYWRIGHT_TRACE_DIR=/app/trace \
+    PLAYWRIGHT_VIDEO_DIR=/app/videos \
+    PLAYWRIGHT_SCREENSHOT_DIR=/app/screenshots
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node -e "console.log('Container is healthy')" || exit 1
+
+# Default command with proper error handling
+CMD ["sh", "-c", "npx playwright test --config=playwright.config.ts || exit_code=$?; npx playwright show-report --port 9323 --host 0.0.0.0; exit ${exit_code:-0}"]

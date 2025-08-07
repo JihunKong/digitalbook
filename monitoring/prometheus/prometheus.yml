@@ -1,0 +1,87 @@
+# Prometheus Configuration for Korean Digital Textbook Platform
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'digitalbook-monitor'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - localhost:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "/etc/prometheus/alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Node Exporter - System metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']
+        labels:
+          instance: 'digitalbook-server'
+          service: 'system'
+
+  # Next.js Frontend metrics
+  - job_name: 'frontend'
+    static_configs:
+      - targets: ['localhost:3000/api/metrics']
+        labels:
+          service: 'frontend'
+          app: 'nextjs'
+    metrics_path: '/api/metrics'
+    scrape_interval: 30s
+
+  # Express Backend metrics
+  - job_name: 'backend'
+    static_configs:
+      - targets: ['localhost:4000/metrics']
+        labels:
+          service: 'backend'
+          app: 'express'
+    scrape_interval: 30s
+
+  # PostgreSQL Exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['localhost:9187']
+        labels:
+          service: 'database'
+          db: 'postgresql'
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['localhost:9121']
+        labels:
+          service: 'cache'
+          db: 'redis'
+
+  # Nginx Exporter
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['localhost:9113']
+        labels:
+          service: 'proxy'
+          server: 'nginx'
+
+  # Docker containers
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['localhost:9323']
+        labels:
+          service: 'containers'
+
+  # Custom application metrics
+  - job_name: 'app_metrics'
+    static_configs:
+      - targets: ['localhost:4000/api/metrics/custom']
+        labels:
+          service: 'application'
+    metrics_path: '/api/metrics/custom'
+    scrape_interval: 60s

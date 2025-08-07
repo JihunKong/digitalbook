@@ -1,0 +1,289 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: digitalbook-postgres-test
+    environment:
+      POSTGRES_DB: digitalbook_test
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass123
+      POSTGRES_MAX_CONNECTIONS: 200
+      POSTGRES_SHARED_BUFFERS: 256MB
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+      - ./backend/prisma/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d digitalbook_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Redis Cache
+  redis-test:
+    image: redis:7-alpine
+    container_name: digitalbook-redis-test
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # Backend API Server
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+      args:
+        NODE_ENV: test
+    container_name: digitalbook-backend-test
+    environment:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://testuser:testpass123@postgres-test:5432/digitalbook_test
+      REDIS_URL: redis://redis-test:6379
+      JWT_SECRET: test-jwt-secret-key-2024
+      JWT_REFRESH_SECRET: test-jwt-refresh-secret-key-2024
+      ACCESS_TOKEN_EXPIRES: 15m
+      REFRESH_TOKEN_EXPIRES: 7d
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-test-key}
+      PORT: 4000
+      CORS_ORIGIN: http://frontend-test:3000
+      # Test-specific settings
+      RATE_LIMIT_WINDOW: 1m
+      RATE_LIMIT_MAX: 100
+      LOG_LEVEL: debug
+      ENABLE_CSRF: true
+      CSRF_SECRET: test-csrf-secret-2024
+    ports:
+      - "4001:4000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - test-network
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
+      - backend-test-uploads:/app/uploads
+      - backend-test-logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Frontend Next.js Server
+  frontend-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        NODE_ENV: test
+    container_name: digitalbook-frontend-test
+    environment:
+      NODE_ENV: test
+      NEXT_PUBLIC_API_URL: http://backend-test:4000
+      NEXT_PUBLIC_WS_URL: ws://backend-test:4000
+      NEXT_PUBLIC_ENVIRONMENT: test
+    ports:
+      - "3001:3000"
+    depends_on:
+      backend-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - test-network
+    volumes:
+      - ./app:/app/app
+      - ./components:/app/components
+      - ./lib:/app/lib
+      - ./public:/app/public
+      - ./styles:/app/styles
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Playwright E2E Test Runner
+  playwright-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    container_name: digitalbook-playwright-test
+    environment:
+      # Test environment
+      BASE_URL: http://frontend-test:3000
+      API_URL: http://backend-test:4000
+      # Test accounts (from TEST_ACCOUNTS.md)
+      TEST_ADMIN_EMAIL: admin@test.com
+      TEST_ADMIN_PASSWORD: Admin123!@#
+      TEST_TEACHER_EMAIL: teacher1@test.com
+      TEST_TEACHER_PASSWORD: Teacher123!
+      TEST_STUDENT_EMAIL: student1@test.com
+      TEST_STUDENT_PASSWORD: Student123!
+      # Playwright settings
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      CI: true
+      # Test configuration
+      TEST_TIMEOUT: 60000
+      RETRY_COUNT: 2
+      WORKERS: 4
+      # Debugging
+      DEBUG: ${DEBUG:-pw:api}
+      PWDEBUG: ${PWDEBUG:-0}
+    depends_on:
+      frontend-test:
+        condition: service_healthy
+      backend-test:
+        condition: service_healthy
+    networks:
+      - test-network
+    volumes:
+      # Test files
+      - ./tests:/app/tests:ro
+      - ./playwright.config.ts:/app/playwright.config.ts:ro
+      # Test artifacts (writable)
+      - playwright-report:/app/playwright-report
+      - test-results:/app/test-results
+      - test-traces:/app/trace
+      - test-videos:/app/videos
+      - test-screenshots:/app/screenshots
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+    command: >
+      sh -c "
+        echo 'Waiting for services to be ready...' &&
+        sleep 10 &&
+        echo 'Starting E2E tests...' &&
+        npx playwright test tests/e2e/auth-unified.spec.ts --reporter=html,list,json &&
+        echo 'Tests completed. Report available at http://localhost:9323' &&
+        npx playwright show-report --port 9323 --host 0.0.0.0
+      "
+
+  # Test Data Seeder (runs once)
+  seeder-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: digitalbook-seeder-test
+    environment:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://testuser:testpass123@postgres-test:5432/digitalbook_test
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    networks:
+      - test-network
+    volumes:
+      - ./backend/prisma:/app/prisma
+      - ./backend/src:/app/src
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        echo 'Running migrations...' &&
+        npx prisma migrate deploy &&
+        echo 'Seeding test data...' &&
+        npx prisma db seed &&
+        echo 'Test data seeded successfully'
+      "
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Report Server (for viewing test results)
+  report-server:
+    image: nginx:alpine
+    container_name: digitalbook-report-server
+    ports:
+      - "8080:80"
+    volumes:
+      - playwright-report:/usr/share/nginx/html:ro
+      - ./nginx/report-server.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - test-network
+    depends_on:
+      - playwright-test
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+networks:
+  test-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  postgres-test-data:
+    driver: local
+  backend-test-uploads:
+    driver: local
+  backend-test-logs:
+    driver: local
+  playwright-report:
+    driver: local
+  test-results:
+    driver: local
+  test-traces:
+    driver: local
+  test-videos:
+    driver: local
+  test-screenshots:
+    driver: local

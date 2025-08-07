@@ -1,0 +1,76 @@
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import { AppError } from './errorHandler';
+import { getDatabase } from '../config/database';
+
+interface JwtPayload {
+  userId: string;
+  email: string;
+  role: string;
+}
+
+interface GuestJwtPayload {
+  guestId: string;
+  sessionId: string;
+  textbookId: string;
+  isGuest: boolean;
+}
+
+export async function authenticateFlexible(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      throw new AppError('No token provided', 401);
+    }
+    
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'secret'
+    ) as JwtPayload | GuestJwtPayload;
+    
+    const prisma = getDatabase();
+    
+    // Check if it's a guest token
+    if ('isGuest' in decoded && decoded.isGuest) {
+      const guest = await prisma.guestAccess.findUnique({
+        where: { id: decoded.guestId },
+        select: { id: true, sessionId: true, textbookId: true },
+      });
+      
+      if (!guest || guest.sessionId !== decoded.sessionId) {
+        throw new AppError('Invalid guest session', 401);
+      }
+      
+      req.user = decoded;
+    } else {
+      // Regular user authentication
+      const user = await prisma.user.findUnique({
+        where: { id: (decoded as JwtPayload).userId },
+        select: { id: true, email: true, role: true },
+      });
+      
+      if (!user) {
+        throw new AppError('User not found', 401);
+      }
+      
+      req.user = {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      };
+    }
+    
+    next();
+  } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError) {
+      next(new AppError('Invalid token', 401));
+    } else {
+      next(error);
+    }
+  }
+}

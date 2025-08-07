@@ -1,0 +1,228 @@
+# Alert Rules for Korean Digital Textbook Platform
+groups:
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # High Memory Usage Alert
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage detected (instance {{ $labels.instance }})"
+          description: "Memory usage is above 85% (current value: {{ $value }}%)"
+
+      # Critical Memory Usage
+      - alert: CriticalMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "Critical memory usage detected (instance {{ $labels.instance }})"
+          description: "Memory usage is above 95% - IMMEDIATE ACTION REQUIRED (current value: {{ $value }}%)"
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for 10 minutes (current value: {{ $value }}%)"
+
+      # Disk Space Alert
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 20
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "Low disk space on root partition"
+          description: "Less than 20% disk space remaining (current: {{ $value }}%)"
+
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # Service Down
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute"
+
+      # High Error Rate
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 5% (current: {{ $value }}%)"
+
+      # Slow Response Time
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 10m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "API response time is slow"
+          description: "95th percentile response time is above 2 seconds (current: {{ $value }}s)"
+
+      # Request Rate Spike
+      - alert: RequestRateSpike
+        expr: rate(http_requests_total[5m]) > 1000
+        for: 2m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "Unusual spike in request rate"
+          description: "Request rate exceeds 1000 req/s (current: {{ $value }})"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # Database Connection Pool Exhausted
+      - alert: DatabaseConnectionPoolExhausted
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "More than 80% of database connections are in use"
+
+      # Slow Database Queries
+      - alert: SlowDatabaseQueries
+        expr: pg_stat_activity_max_tx_duration > 60
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Long running database transaction detected"
+          description: "Transaction running for more than 60 seconds"
+
+      # Database Replication Lag
+      - alert: DatabaseReplicationLag
+        expr: pg_replication_lag > 10
+        for: 5m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "Database replication lag detected"
+          description: "Replication lag is {{ $value }} seconds"
+
+  - name: redis_alerts
+    interval: 30s
+    rules:
+      # Redis Memory Usage
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Redis memory usage is high"
+          description: "Redis is using more than 80% of allocated memory"
+
+      # Redis Connection Refused
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Cannot connect to Redis server"
+
+  - name: business_alerts
+    interval: 1m
+    rules:
+      # Low User Activity
+      - alert: LowUserActivity
+        expr: digitalbook_active_users < 10
+        for: 30m
+        labels:
+          severity: info
+          service: business
+        annotations:
+          summary: "Low user activity detected"
+          description: "Less than 10 active users in the last 30 minutes"
+
+      # AI API Failures
+      - alert: AIAPIFailures
+        expr: rate(ai_api_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: ai
+        annotations:
+          summary: "AI API experiencing errors"
+          description: "AI API error rate is {{ $value }} errors/sec"
+
+      # High AI API Cost
+      - alert: HighAIAPICost
+        expr: increase(ai_api_cost_dollars[1h]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: ai
+        annotations:
+          summary: "High AI API costs detected"
+          description: "AI API costs exceeded $10 in the last hour (current: ${{ $value }})"
+
+  - name: security_alerts
+    interval: 30s
+    rules:
+      # Multiple Failed Login Attempts
+      - alert: MultipleFailedLogins
+        expr: rate(login_failures_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "Multiple failed login attempts detected"
+          description: "More than 10 failed login attempts per second"
+
+      # Potential DDoS Attack
+      - alert: PotentialDDoS
+        expr: rate(http_requests_total[1m]) > 5000
+        for: 2m
+        labels:
+          severity: critical
+          service: security
+        annotations:
+          summary: "Potential DDoS attack detected"
+          description: "Request rate exceeds 5000 req/s for 2 minutes"
+
+      # SSL Certificate Expiry
+      - alert: SSLCertificateExpiringSoon
+        expr: (ssl_cert_expiry_timestamp - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "SSL certificate expiring soon"
+          description: "SSL certificate will expire in {{ $value }} days"

@@ -1,0 +1,38 @@
+{
+  "appId": "kr.digitalbook.textbook",
+  "appName": "디지털 교과서",
+  "webDir": "out",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://digitalbook.kr",
+    "cleartext": false
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#ffffff",
+    "overrideUserAgent": "DigitalTextbook/1.0 (iPad)",
+    "limitsNavigationsToAppBoundDomains": true,
+    "allowsLinkPreview": false,
+    "scrollEnabled": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#6366f1",
+      "showSpinner": false,
+      "androidSpinnerStyle": "small",
+      "iosSpinnerStyle": "small",
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "Keyboard": {
+      "resize": "body",
+      "style": "light",
+      "resizeOnFullScreen": true
+    },
+    "StatusBar": {
+      "style": "light",
+      "backgroundColor": "#6366f1"
+    }
+  }
+}

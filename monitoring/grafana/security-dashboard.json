@@ -1,0 +1,258 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "digitalbook-security",
+    "title": "Security Monitoring - Digital Textbook Platform",
+    "tags": ["digitalbook", "security", "threats"],
+    "timezone": "browser",
+    "schemaVersion": 30,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "type": "stat",
+        "title": "Security Score",
+        "targets": [
+          {
+            "expr": "100 - (digitalbook_security_incidents_total / digitalbook_total_requests * 100)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 1,
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 90},
+                {"color": "green", "value": 95}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "type": "stat",
+        "title": "Failed Login Attempts",
+        "targets": [
+          {
+            "expr": "sum(rate(login_failures_total[5m])) * 300",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "decimals": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 10},
+                {"color": "red", "value": 50}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "type": "stat",
+        "title": "Blocked IP Addresses",
+        "targets": [
+          {
+            "expr": "digitalbook_blocked_ips_total",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "type": "stat",
+        "title": "SSL Certificate Days Left",
+        "targets": [
+          {
+            "expr": "(ssl_cert_expiry_timestamp - time()) / 86400",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "d",
+            "decimals": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 30},
+                {"color": "green", "value": 60}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "type": "timeseries",
+        "title": "Security Events Timeline",
+        "targets": [
+          {
+            "expr": "rate(digitalbook_security_events_total{type=\"failed_login\"}[5m])",
+            "legendFormat": "Failed Logins",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(digitalbook_security_events_total{type=\"sql_injection\"}[5m])",
+            "legendFormat": "SQL Injection Attempts",
+            "refId": "B"
+          },
+          {
+            "expr": "rate(digitalbook_security_events_total{type=\"xss\"}[5m])",
+            "legendFormat": "XSS Attempts",
+            "refId": "C"
+          },
+          {
+            "expr": "rate(digitalbook_security_events_total{type=\"rate_limit\"}[5m])",
+            "legendFormat": "Rate Limit Violations",
+            "refId": "D"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "type": "geomap",
+        "title": "Attack Origin Map",
+        "targets": [
+          {
+            "expr": "digitalbook_attacks_by_country",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "type": "table",
+        "title": "Top Attack Sources",
+        "targets": [
+          {
+            "expr": "topk(10, sum by(ip) (digitalbook_attack_attempts))",
+            "format": "table",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "type": "piechart",
+        "title": "Attack Types Distribution",
+        "targets": [
+          {
+            "expr": "sum by(attack_type) (digitalbook_security_events_total)",
+            "legendFormat": "{{ attack_type }}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "gridPos": {"h": 6, "w": 8, "x": 0, "y": 20},
+        "type": "stat",
+        "title": "JWT Token Violations",
+        "targets": [
+          {
+            "expr": "sum(rate(jwt_validation_failures_total[5m])) * 300",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "decimals": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 20}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "gridPos": {"h": 6, "w": 8, "x": 8, "y": 20},
+        "type": "gauge",
+        "title": "Password Strength Score",
+        "targets": [
+          {
+            "expr": "avg(digitalbook_password_strength_score)",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 60},
+                {"color": "green", "value": 80}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 11,
+        "gridPos": {"h": 6, "w": 8, "x": 16, "y": 20},
+        "type": "stat",
+        "title": "2FA Adoption Rate",
+        "targets": [
+          {
+            "expr": "(digitalbook_users_with_2fa / digitalbook_total_users) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "decimals": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 50},
+                {"color": "green", "value": 80}
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}
