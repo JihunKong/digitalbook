@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,7 @@ interface PublicTextbook {
 }
 
 export default function ExplorePage() {
+  const router = useRouter();
   const [textbooks, setTextbooks] = useState<PublicTextbook[]>([]);
   const [filteredTextbooks, setFilteredTextbooks] = useState<PublicTextbook[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -193,7 +195,12 @@ export default function ExplorePage() {
                 </div>
                 
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => router.push('/textbook/demo')}
+                  >
                     <Eye className="h-4 w-4 mr-1" />
                     미리보기
                   </Button>

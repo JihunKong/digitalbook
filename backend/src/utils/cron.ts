@@ -12,13 +12,14 @@ export function startCronJobs() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      await prisma.chatMessage.deleteMany({
-        where: {
-          createdAt: {
-            lt: thirtyDaysAgo,
-          },
-        },
-      });
+      // TODO: Implement chatMessage model cleanup when available
+      // await prisma.chatMessage.deleteMany({
+      //   where: {
+      //     createdAt: {
+      //       lt: thirtyDaysAgo,
+      //     },
+      //   },
+      // });
       
       logger.info('Daily cleanup job completed');
     } catch (error) {

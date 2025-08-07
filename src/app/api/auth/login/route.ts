@@ -15,6 +15,18 @@ const PREDEFINED_ACCOUNTS = {
     role: 'TEACHER',
     id: '2'
   },
+  'teacher1@test.com': {
+    password: 'teacher123!',
+    name: '테스트 교사',
+    role: 'TEACHER',
+    id: '8'
+  },
+  'teacher2@test.com': {
+    password: 'Teacher123!',
+    name: '박영희 선생님',
+    role: 'TEACHER',
+    id: '9'
+  },
   'student1@test.com': {
     password: 'student123!',
     name: '김민수',

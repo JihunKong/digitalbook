@@ -3,16 +3,19 @@
 import { useState, useEffect } from 'react'
 import { X, AlertCircle, RefreshCw, Clock } from 'lucide-react'
 import { features, DEMO_MESSAGES, setDemoMode, DEMO_RESET_INTERVAL } from '@/config/features'
+import { useDemoMode } from '@/contexts/DemoModeContext'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import apiClient from '@/lib/api'
 
 export function DemoModeBanner() {
+  const { isDemoMode, exitDemoMode } = useDemoMode()
   const [isVisible, setIsVisible] = useState(true)
   const [timeUntilReset, setTimeUntilReset] = useState<number | null>(null)
   
   useEffect(() => {
     // 데모 모드가 아니면 컴포넌트 렌더링하지 않음
-    if (!features.DEMO_MODE) return
+    if (!isDemoMode) return
     
     // 로컬 스토리지에서 배너 숨김 상태 확인
     const hidden = localStorage.getItem('demoBannerHidden') === 'true'
@@ -41,7 +44,7 @@ export function DemoModeBanner() {
   }, [])
   
   useEffect(() => {
-    if (!features.DEMO_MODE || timeUntilReset === null) return
+    if (!isDemoMode || timeUntilReset === null) return
     
     // 매초마다 남은 시간 업데이트
     const interval = setInterval(() => {
@@ -58,7 +61,7 @@ export function DemoModeBanner() {
     return () => clearInterval(interval)
   }, [timeUntilReset])
   
-  if (!features.DEMO_MODE || !isVisible) {
+  if (!isDemoMode || !isVisible) {
     return null
   }
   
@@ -69,21 +72,16 @@ export function DemoModeBanner() {
   
   const handleExitDemo = () => {
     if (confirm('데모 모드를 종료하시겠습니까?')) {
-      setDemoMode(false)
+      exitDemoMode()
     }
   }
   
   const handleDemoReset = async () => {
     try {
       // 백엔드 API 호출하여 데모 데이터 리셋
-      const response = await fetch('/api/demo/reset', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
+      const response = await apiClient.resetDemoData()
       
-      if (response.ok) {
+      if (response.data) {
         // 새로운 리셋 시간 설정
         const newResetTime = Date.now() + DEMO_RESET_INTERVAL
         localStorage.setItem('demoResetTime', newResetTime.toString())
@@ -167,15 +165,16 @@ export function DemoModeBanner() {
 
 // 데모 모드 플로팅 버튼 (데모 모드가 아닐 때 표시)
 export function DemoModeToggle() {
+  const { isDemoMode, enableDemoMode } = useDemoMode()
   const [isHovered, setIsHovered] = useState(false)
   
-  if (features.DEMO_MODE) {
+  if (isDemoMode) {
     return null
   }
   
   const handleEnableDemo = () => {
     if (confirm('데모 모드를 활성화하시겠습니까? 샘플 데이터가 로드됩니다.')) {
-      setDemoMode(true)
+      enableDemoMode()
     }
   }
   

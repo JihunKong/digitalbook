@@ -148,7 +148,7 @@ export class SecureFetch {
     // CSRF 에러 처리
     if (response.status === 403) {
       const data = await response.json();
-      if (data.error?.includes('CSRF')) {
+      if (typeof data.error === 'string' && data.error.includes('CSRF')) {
         // 토큰 재발급 후 재시도
         this.csrfManager.invalidateToken();
         const newToken = await this.csrfManager.getToken();
@@ -170,11 +170,11 @@ export class SecureFetch {
  * React Hook 예제
  */
 export function useCSRF() {
-  const [token, setToken] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<Error | null>(null);
+  const [token, setToken] = (React as any).useState<string | null>(null);
+  const [loading, setLoading] = (React as any).useState(true);
+  const [error, setError] = (React as any).useState<Error | null>(null);
 
-  React.useEffect(() => {
+  (React as any).useEffect(() => {
     const csrfManager = CSRFManager.getInstance();
     
     csrfManager.getToken()
@@ -240,7 +240,7 @@ export async function submitFormWithCSRF(
  */
 export function getCSRFTokenFromCookie(): string | null {
   const name = 'csrf-token=';
-  const decodedCookie = decodeURIComponent(document.cookie);
+  const decodedCookie = decodeURIComponent((document as any).cookie);
   const cookies = decodedCookie.split(';');
   
   for (let cookie of cookies) {

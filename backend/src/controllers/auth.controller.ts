@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getDatabase } from '../config/database';
 import { getRedis } from '../config/redis';
+import { config } from '../config/env.validation';
 import { AppError } from '../middlewares/errorHandler';
 import { logger } from '../utils/logger';
 import { UserRole } from '@prisma/client';
@@ -34,15 +35,15 @@ class AuthController {
   // 토큰 생성 헬퍼 메서드
   private generateTokenPair(payload: JWTPayload): TokenPair {
     const accessToken = jwt.sign(
-      payload,
-      process.env.JWT_SECRET || 'secret',
-      { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' }
+      payload as object,
+      config.JWT_SECRET as string,
+      { expiresIn: config.ACCESS_TOKEN_EXPIRES }
     );
     
     const refreshToken = jwt.sign(
-      payload,
-      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'refresh-secret',
-      { expiresIn: process.env.REFRESH_TOKEN_EXPIRES || '7d' }
+      payload as object,
+      config.JWT_REFRESH_SECRET as string,
+      { expiresIn: config.REFRESH_TOKEN_EXPIRES }
     );
     
     return { accessToken, refreshToken };
@@ -368,7 +369,7 @@ class AuthController {
       try {
         decoded = jwt.verify(
           refreshToken,
-          process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'refresh-secret'
+          config.JWT_REFRESH_SECRET
         ) as JWTPayload;
       } catch (error) {
         throw new AppError('Invalid refresh token', 401);
@@ -405,9 +406,9 @@ class AuthController {
           email: session.user.email,
           role: session.user.role,
           sessionId: session.id,
-        },
-        process.env.JWT_SECRET || 'secret',
-        { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' }
+        } as object,
+        config.JWT_SECRET as string,
+        { expiresIn: config.ACCESS_TOKEN_EXPIRES }
       );
       
       // 세션 활동 시간 업데이트
@@ -449,7 +450,7 @@ class AuthController {
         try {
           const decoded = jwt.verify(
             accessToken,
-            process.env.JWT_SECRET || 'secret'
+            config.JWT_SECRET
           ) as JWTPayload;
           
           // 세션 삭제

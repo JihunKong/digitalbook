@@ -61,9 +61,34 @@ export default function GuestTextbookViewerPage() {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [showResult, setShowResult] = useState(false)
   const [guestInfo, setGuestInfo] = useState<any>(null)
+  const [textbook, setTextbook] = useState<Textbook | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // 샘플 교과서 데이터
-  const textbook: Textbook = {
+  useEffect(() => {
+    fetchTextbook()
+  }, [params?.id])
+
+  const fetchTextbook = async () => {
+    try {
+      setIsLoading(true)
+      const response = await fetch(`/api/textbooks/${params?.id || '1'}/public`)
+      if (response.ok) {
+        const data = await response.json()
+        setTextbook(data)
+      } else {
+        console.error('Failed to fetch textbook')
+        setTextbook(getSampleTextbook())
+      }
+    } catch (error) {
+      console.error('Error fetching textbook:', error)
+      setTextbook(getSampleTextbook())
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // 샘플 교과서 데이터 (fallback)
+  const getSampleTextbook = (): Textbook => ({
     id: params?.id as string || '1',
     title: '재미있는 국어 여행',
     subject: '국어',
@@ -211,17 +236,45 @@ export default function GuestTextbookViewerPage() {
         }
       }
     ]
-  }
+  })
 
   useEffect(() => {
-    // 게스트 정보 확인
+    // sample 경로인 경우 고급 교과서로 리디렉션
+    if (params?.id === 'sample') {
+      router.push('/textbook/demo')
+      return
+    }
+    
+    // demo 경로인 경우 게스트 정보 체크 건너뛰기
+    if (params?.id === 'demo') {
+      setGuestInfo({
+        studentName: '체험 사용자',
+        studentId: 'DEMO',
+        isDemo: true
+      })
+      return
+    }
+    
+    // 일반 게스트 접근 시 정보 확인
     const storedGuestInfo = localStorage.getItem('guestInfo')
     if (!storedGuestInfo) {
       router.push('/guest')
       return
     }
     setGuestInfo(JSON.parse(storedGuestInfo))
-  }, [router])
+  }, [router, params?.id])
+
+  // Loading state
+  if (isLoading || !textbook) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">교과서를 불러오는 중...</p>
+        </div>
+      </div>
+    )
+  }
 
   const currentPageData = textbook.pages[currentPage - 1]
   const progress = (currentPage / textbook.totalPages) * 100

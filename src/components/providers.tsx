@@ -6,6 +6,7 @@ import ErrorBoundary from './ErrorBoundary'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 import { AccessibilityProvider } from './AccessibilityProvider'
 import { AuthProvider } from '@/hooks/useAuth'
+import { DemoModeProvider } from '@/contexts/DemoModeContext'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -41,13 +42,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <AccessibilityProvider>
-            <NotificationProvider>
-              {children}
-            </NotificationProvider>
-          </AccessibilityProvider>
-        </AuthProvider>
+        <DemoModeProvider>
+          <AuthProvider>
+            <AccessibilityProvider>
+              <NotificationProvider>
+                {children}
+              </NotificationProvider>
+            </AccessibilityProvider>
+          </AuthProvider>
+        </DemoModeProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   )

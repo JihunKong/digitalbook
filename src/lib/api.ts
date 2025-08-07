@@ -19,6 +19,17 @@ class ApiClient {
     }
   }
 
+  private isDemoMode(): boolean {
+    if (typeof window === 'undefined') return false
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlDemo = urlParams.get('demo') === 'true'
+    const storageDemo = localStorage.getItem('demoMode') === 'true'
+    const isInDemoRoute = window.location.pathname.startsWith('/demo')
+    
+    return urlDemo || storageDemo || isInDemoRoute || process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+  }
+
   setToken(token: string) {
     this.token = token
     if (typeof window !== 'undefined') {
@@ -43,6 +54,7 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
         ...(this.token && { Authorization: `Bearer ${this.token}` }),
+        ...(this.isDemoMode() && { 'X-Demo-Mode': 'true' }),
         ...options.headers,
       },
       ...options,
@@ -610,6 +622,27 @@ class ApiClient {
 
   async getStudentDashboardData() {
     return this.request('/students/dashboard')
+  }
+
+  // Demo Mode APIs
+  async getDemoStatus() {
+    return this.request('/demo/status')
+  }
+
+  async resetDemoData() {
+    return this.request('/demo/reset', {
+      method: 'POST'
+    })
+  }
+
+  async getDemoAccounts() {
+    return this.request('/demo/accounts')
+  }
+
+  async loginWithDemoAccount(role: 'teacher' | 'student' | 'admin') {
+    return this.request(`/demo/login/${role}`, {
+      method: 'POST'
+    })
   }
 }
 

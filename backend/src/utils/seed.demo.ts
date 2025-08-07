@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
+import * as bcrypt from 'bcryptjs'
 import { logger } from './logger'
 
 const prisma = new PrismaClient()
@@ -131,7 +131,8 @@ async function createDemoTextbooks(tx: any, users: any) {
     { name: '사회', grade: 5, chapters: 8 },
   ]
   
-  for (const [index, subject] of subjects.entries()) {
+  for (let index = 0; index < subjects.length; index++) {
+    const subject = subjects[index]
     const teacher = users.teachers[index % users.teachers.length]
     
     const textbook = await tx.textbook.create({

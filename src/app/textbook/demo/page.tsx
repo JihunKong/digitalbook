@@ -153,16 +153,21 @@ export default function TextbookDemoPage() {
 
       setIsSpeaking(true)
       
-      // Use OpenAI TTS with Korean-optimized settings
-      await speakTTS(textContent, {
-        voice: 'shimmer',  // Better for Korean
-        model: 'tts-1-hd', // High quality
-        speed: 0.9,        // Slightly slower for clarity
-        language: 'ko',
-        autoPlay: true
-      })
-      
-      setIsSpeaking(false)
+      try {
+        // Use OpenAI TTS with Korean-optimized settings
+        await speakTTS(textContent, {
+          voice: 'shimmer',  // Better for Korean
+          model: 'tts-1',    // Standard quality (tts-1-hd may not be available)
+          speed: 0.9,        // Slightly slower for clarity
+          language: 'ko',
+          autoPlay: true
+        })
+      } catch (error) {
+        console.error('TTS error:', error)
+        // Browser TTS will be used as fallback automatically
+      } finally {
+        setIsSpeaking(false)
+      }
     }
   }
 

@@ -45,8 +45,8 @@ class CachedTextbookController {
         });
       } else {
         // Students see textbooks assigned to their classes
-        const studentClasses = await prisma.classMember.findMany({
-          where: { userId, role: 'STUDENT' },
+        const studentClasses = await prisma.classEnrollment.findMany({
+          where: { studentId: userId },
           select: { classId: true },
         });
         
@@ -426,10 +426,9 @@ class CachedTextbookController {
     }
 
     // Check if student is in a class with this textbook
-    const classMembership = await prisma.classMember.findFirst({
+    const classMembership = await prisma.classEnrollment.findFirst({
       where: {
-        userId,
-        role: 'STUDENT',
+        studentId: userId,
         class: {
           textbooks: {
             some: {

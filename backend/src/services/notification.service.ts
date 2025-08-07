@@ -177,7 +177,7 @@ export class NotificationService {
       const prisma = getDatabase();
       
       // Get all students in the class
-      const students = await prisma.classMember.findMany({
+      const students = await prisma.classEnrollment.findMany({
         where: {
           classId,
           role: 'STUDENT',
@@ -224,7 +224,7 @@ export class NotificationService {
       const prisma = getDatabase();
       
       // Get all students in the class
-      const students = await prisma.classMember.findMany({
+      const students = await prisma.classEnrollment.findMany({
         where: {
           classId,
           role: 'STUDENT',

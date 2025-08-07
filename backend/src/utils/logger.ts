@@ -37,7 +37,7 @@ const jsonFormat = winston.format.combine(
       timestamp: info.timestamp,
       level: info.level,
       message: info.message,
-      ...info.metadata,
+      ...(typeof info.metadata === 'object' && info.metadata ? info.metadata : {}),
     });
   })
 );
@@ -93,7 +93,7 @@ if (process.env.NODE_ENV === 'production') {
       format: winston.format.combine(
         winston.format((info) => {
           // Only log security-related messages
-          if (info.metadata?.type === 'security') {
+          if (typeof info.metadata === 'object' && info.metadata && info.metadata.type === 'security') {
             return info;
           }
           return false;
@@ -114,7 +114,7 @@ if (process.env.NODE_ENV === 'production') {
       format: winston.format.combine(
         winston.format((info) => {
           // Only log performance-related messages
-          if (info.metadata?.type === 'performance') {
+          if (typeof info.metadata === 'object' && info.metadata && info.metadata.type === 'performance') {
             return info;
           }
           return false;

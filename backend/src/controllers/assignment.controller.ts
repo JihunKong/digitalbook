@@ -38,20 +38,25 @@ export const assignmentController = {
         data: {
           title: data.title,
           description: data.description,
-          type: data.type || 'WRITING',
+          type: data.type || 'ESSAY',
           dueDate: new Date(data.dueDate),
           points: data.points || 100,
           classId: data.classId,
-          teacherId: userId,
-          content: data.content || {},
         },
         include: {
-          class: true,
-          teacher: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+          class: {
+            include: {
+              teacher: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -67,15 +72,15 @@ export const assignmentController = {
             description: assignment.description,
             dueDate: assignment.dueDate,
             points: assignment.points,
-            teacherName: assignment.teacher.name,
+            teacherName: assignment.class.teacher.user.name,
           },
           className: assignment.class.name,
           timestamp: new Date(),
         });
       }
 
-      // Also create persistent notifications
-      await notificationService.notifyNewAssignment(data.classId, assignment);
+      // TODO: Also create persistent notifications
+      // await notificationService.notifyNewAssignment(data.classId, assignment);
 
       res.json(assignment);
     } catch (error) {
@@ -90,13 +95,17 @@ export const assignmentController = {
       const { classId } = req.params;
       const { userId } = req.user as any;
 
-      // Check if user has access to this class
-      const hasAccess = await prisma.classMember.findFirst({
-        where: {
-          classId,
-          userId,
-        },
+      // Check if user is teacher or student in class
+      const classInfo = await prisma.class.findUnique({
+        where: { id: classId },
+        include: {
+          enrollments: {
+            where: { studentId: userId }
+          }
+        }
       });
+      
+      const hasAccess = classInfo?.teacherId === userId || classInfo?.enrollments.length > 0;
 
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied' });
@@ -108,11 +117,7 @@ export const assignmentController = {
         },
         include: {
           class: true,
-          submissions: {
-            where: {
-              userId,
-            },
-          },
+          // TODO: Add submissions relation when implementing assignment submissions
         },
         orderBy: {
           dueDate: 'asc',
@@ -136,11 +141,7 @@ export const assignmentController = {
         where: { id },
         include: {
           class: true,
-          submissions: {
-            where: {
-              userId,
-            },
-          },
+          // TODO: Add submissions relation when implementing assignment submissions
         },
       });
 
@@ -148,13 +149,17 @@ export const assignmentController = {
         return res.status(404).json({ error: 'Assignment not found' });
       }
 
-      // Check if user has access
-      const hasAccess = await prisma.classMember.findFirst({
-        where: {
-          classId: assignment.classId,
-          userId,
-        },
+      // Check if user is teacher or student in class
+      const classInfo = await prisma.class.findUnique({
+        where: { id: assignment.classId },
+        include: {
+          enrollments: {
+            where: { studentId: userId }
+          }
+        }
       });
+      
+      const hasAccess = classInfo?.teacherId === userId || classInfo?.enrollments.length > 0;
 
       if (!hasAccess) {
         return res.status(403).json({ error: 'Access denied' });
@@ -174,39 +179,31 @@ export const assignmentController = {
       const data = req.body;
       const { userId } = req.user as any;
 
-      // Get or create submission
-      let submission = await prisma.assignmentSubmission.findFirst({
-        where: {
-          assignmentId: id,
-          userId,
-        },
+      // Update assignment with submission data
+      const assignment = await prisma.assignment.findUnique({
+        where: { id }
       });
-
-      if (!submission) {
-        submission = await prisma.assignmentSubmission.create({
-          data: {
-            assignmentId: id,
-            userId,
-            content: data.content || {},
-            status: data.status || 'DRAFT',
-          },
-        });
-      } else {
-        // Update existing submission
-        submission = await prisma.assignmentSubmission.update({
-          where: { id: submission.id },
-          data: {
-            content: data.content || submission.content,
-            status: data.status || submission.status,
-            submittedAt: data.status === 'SUBMITTED' ? new Date() : submission.submittedAt,
-          },
-        });
+      
+      if (!assignment) {
+        return res.status(404).json({ error: 'Assignment not found' });
       }
-
-      const updatedSubmission = await prisma.assignmentSubmission.findUnique({
-        where: { id: submission.id },
+      
+      // Check if this is the assigned student or if no student is assigned
+      if (assignment.studentId && assignment.studentId !== userId) {
+        return res.status(403).json({ error: 'Not assigned to this student' });
+      }
+      
+      const updatedSubmission = await prisma.assignment.update({
+        where: { id },
+        data: {
+          studentId: userId,
+          submission: data.content || {},
+          submittedAt: data.status === 'SUBMITTED' ? new Date() : assignment.submittedAt,
+          score: data.score || assignment.score,
+          feedback: data.feedback || assignment.feedback,
+        },
         include: {
-          assignment: true,
+          class: true,
         },
       });
 
@@ -237,15 +234,21 @@ export const assignmentController = {
         return res.status(404).json({ error: 'Assignment not found' });
       }
 
-      const submissions = await prisma.assignmentSubmission.findMany({
-        where: { assignmentId: id },
+      const submissions = await prisma.assignment.findMany({
+        where: { 
+          classId: assignment.classId,
+          submittedAt: { not: null }
+        },
         include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              profileImage: true,
+          student: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
             },
           },
         },

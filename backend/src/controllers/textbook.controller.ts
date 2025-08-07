@@ -26,8 +26,8 @@ class TextbookController {
         });
       } else {
         // Students see textbooks assigned to their classes
-        const studentClasses = await prisma.classMember.findMany({
-          where: { userId, role: 'STUDENT' },
+        const studentClasses = await prisma.classEnrollment.findMany({
+          where: { studentId: userId },
           select: { classId: true },
         });
         

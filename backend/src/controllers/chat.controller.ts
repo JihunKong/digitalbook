@@ -18,33 +18,35 @@ class ChatController {
       // Check if guest user
       if (user.isGuest) {
         // Save guest user message
-        userMessage = await prisma.guestChatMessage.create({
-          data: {
-            guestId: user.guestId,
-            role: 'USER',
-            content: message,
-            context: {
-              pageContent,
-              pageNumber,
-              textbookTitle,
-            },
-          },
-        });
+        // TODO: Implement guestChatMessage model or use alternative storage
+        // userMessage = await prisma.guestChatMessage.create({
+        //   data: {
+        //     guestId: user.guestId,
+        //     role: 'USER',
+        //     content: message,
+        //     context: {
+        //       pageContent,
+        //       pageNumber,
+        //       textbookTitle,
+        //     },
+        //   },
+        // });
       } else {
         // Save regular user message
-        userMessage = await prisma.chatMessage.create({
-          data: {
-            userId: user.userId,
-            sessionId,
-            role: 'USER',
-            content: message,
-            context: {
-              pageContent,
-              pageNumber,
-              textbookTitle,
-            },
-          },
-        });
+        // TODO: Implement chatMessage model or use alternative storage
+        // userMessage = await prisma.chatMessage.create({
+        //   data: {
+        //     userId: user.userId,
+        //     sessionId,
+        //     role: 'USER',
+        //     content: message,
+        //     context: {
+        //       pageContent,
+        //       pageNumber,
+        //       textbookTitle,
+        //     },
+        //   },
+        // });
       }
       
       // Get AI response using GPT-4o-mini
@@ -60,32 +62,34 @@ class ChatController {
       
       // Save AI response
       if (user.isGuest) {
-        assistantMessage = await prisma.guestChatMessage.create({
-          data: {
-            guestId: user.guestId,
-            role: 'ASSISTANT',
-            content: aiResponse,
-            context: {
-              pageContent,
-              pageNumber,
-              textbookTitle,
-            },
-          },
-        });
+        // TODO: Implement guestChatMessage model or use alternative storage
+        // assistantMessage = await prisma.guestChatMessage.create({
+        //   data: {
+        //     guestId: user.guestId,
+        //     role: 'ASSISTANT',
+        //     content: aiResponse,
+        //     context: {
+        //       pageContent,
+        //       pageNumber,
+        //       textbookTitle,
+        //     },
+        //   },
+        // });
       } else {
-        assistantMessage = await prisma.chatMessage.create({
-          data: {
-            userId: user.userId,
-            sessionId,
-            role: 'ASSISTANT',
-            content: aiResponse,
-            context: {
-              pageContent,
-              pageNumber,
-              textbookTitle,
-            },
-          },
-        });
+        // TODO: Implement chatMessage model or use alternative storage
+        // assistantMessage = await prisma.chatMessage.create({
+        //   data: {
+        //     userId: user.userId,
+        //     sessionId,
+        //     role: 'ASSISTANT',
+        //     content: aiResponse,
+        //     context: {
+        //       pageContent,
+        //       pageNumber,
+        //       textbookTitle,
+        //     },
+        //   },
+        // });
       }
       
       // Emit to socket for real-time update
@@ -110,26 +114,30 @@ class ChatController {
       let messages;
       
       if (user.isGuest) {
-        messages = await prisma.guestChatMessage.findMany({
-          where: {
-            guestId: user.guestId,
-          },
-          orderBy: {
-            createdAt: 'asc',
-          },
-          take: 50, // Last 50 messages
-        });
+        // TODO: Implement guestChatMessage model or use alternative storage
+        messages = []; // Temporary empty array
+        // messages = await prisma.guestChatMessage.findMany({
+        //   where: {
+        //     guestId: user.guestId,
+        //   },
+        //   orderBy: {
+        //     createdAt: 'asc',
+        //   },
+        //   take: 50, // Last 50 messages
+        // });
       } else {
-        messages = await prisma.chatMessage.findMany({
-          where: {
-            userId: user.userId,
-            sessionId,
-          },
-          orderBy: {
-            createdAt: 'asc',
-          },
-          take: 50, // Last 50 messages
-        });
+        // TODO: Implement chatMessage model or use alternative storage
+        messages = []; // Temporary empty array
+        // messages = await prisma.chatMessage.findMany({
+        //   where: {
+        //     userId: user.userId,
+        //     sessionId,
+        //   },
+        //   orderBy: {
+        //     createdAt: 'asc',
+        //   },
+        //   take: 50, // Last 50 messages
+        // });
       }
       
       res.json(messages);

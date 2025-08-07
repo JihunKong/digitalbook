@@ -55,10 +55,15 @@ export function useTTS(): UseTTSReturn {
       abortControllerRef.current.abort();
     }
 
-    // Stop current audio if playing
+    // Stop current audio if playing  
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = '';
+    }
+
+    // Stop browser TTS if playing
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
     }
 
     if (!text?.trim()) {
@@ -76,19 +81,19 @@ export function useTTS(): UseTTSReturn {
     setIsSpeaking(false);
     setIsPaused(false);
 
-    // Create new abort controller for this request
+    // Korean optimized settings
+    const {
+      voice = 'shimmer',
+      model = 'tts-1-hd',  // HD 모델로 품질 향상
+      speed = 0.95,  // 한국어에 최적화된 속도
+      language = 'ko',
+      autoPlay = true
+    } = options;
+
+    // First try OpenAI API for better quality
     abortControllerRef.current = new AbortController();
 
     try {
-      // Korean optimized settings
-      const {
-        voice = 'shimmer', // Better for Korean
-        model = 'tts-1-hd', // High quality
-        speed = 0.9, // Slightly slower for Korean clarity
-        language = 'ko',
-        autoPlay = true
-      } = options;
-
       const response = await fetch('/api/tts/generate', {
         method: 'POST',
         headers: {
@@ -112,7 +117,15 @@ export function useTTS(): UseTTSReturn {
       const data = await response.json();
       
       if (!data.data?.audioUrl) {
-        throw new Error('오디오 URL을 받지 못했습니다');
+        // API failed but don't fallback to browser TTS
+        setError('OpenAI TTS를 사용할 수 없습니다. API 키를 확인해주세요.');
+        toast({
+          title: 'TTS 오류',
+          description: 'OpenAI API 키가 설정되지 않았거나 유효하지 않습니다.',
+          variant: 'destructive'
+        });
+        setIsLoading(false);
+        return;
       }
 
       // Clean up old audio URL
@@ -154,14 +167,11 @@ export function useTTS(): UseTTSReturn {
         await audio.play();
       }
 
-      // Show cache status
-      if (data.data.cached) {
-        toast({
-          title: '캐시된 음성 사용',
-          description: '이전에 생성된 음성을 재생합니다.',
-          duration: 2000,
-        });
-      }
+      toast({
+        title: '고품질 음성 읽기',
+        description: 'OpenAI HD 음성을 사용합니다.',
+        duration: 2000,
+      });
 
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -169,45 +179,15 @@ export function useTTS(): UseTTSReturn {
         return;
       }
       
-      console.error('TTS error:', err);
-      setError(err.message || '음성 생성 실패');
+      console.error('OpenAI TTS error:', err);
       
-      // Fallback to browser TTS if API fails
-      if ('speechSynthesis' in window && !options.voice) {
-        console.log('Falling back to browser TTS');
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = options.language === 'en' ? 'en-US' : 'ko-KR';
-        utterance.rate = options.speed || 0.9;
-        
-        utterance.onstart = () => {
-          setIsSpeaking(true);
-          setIsPaused(false);
-        };
-        
-        utterance.onend = () => {
-          setIsSpeaking(false);
-          setIsPaused(false);
-        };
-        
-        utterance.onerror = () => {
-          setError('브라우저 TTS 실패');
-          setIsSpeaking(false);
-        };
-        
-        window.speechSynthesis.speak(utterance);
-        
-        toast({
-          title: 'API 연결 실패',
-          description: '브라우저 내장 음성을 사용합니다.',
-          variant: 'default'
-        });
-      } else {
-        toast({
-          title: '음성 생성 실패',
-          description: err.message || '음성을 생성하는 중 오류가 발생했습니다.',
-          variant: 'destructive'
-        });
-      }
+      // No fallback to browser TTS - only use OpenAI
+      setError('OpenAI TTS 사용 불가');
+      toast({
+        title: 'TTS 오류',
+        description: 'OpenAI 음성 서비스를 사용할 수 없습니다. API 키를 확인해주세요.',
+        variant: 'destructive'
+      });
     } finally {
       setIsLoading(false);
     }

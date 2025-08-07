@@ -19,28 +19,27 @@ class AnalyticsController {
         // 교사 대시보드 통계
         const stats = await prisma.$transaction([
           // 관리 중인 학급 수
-          prisma.classMember.count({
-            where: { userId, role: 'TEACHER' }
+          prisma.class.count({
+            where: { teacherId: userId }
           }),
           // 총 학생 수
-          prisma.classMember.count({
+          prisma.classEnrollment.count({
             where: {
               class: {
-                members: {
-                  some: { userId, role: 'TEACHER' }
-                }
-              },
-              role: 'STUDENT'
+                teacherId: userId
+              }
             }
           }),
           // 생성한 교과서 수
           prisma.textbook.count({
-            where: { teacherId: userId }
+            where: { authorId: userId }
           }),
           // 활성 과제 수
           prisma.assignment.count({
             where: {
-              teacherId: userId,
+              class: {
+                teacherId: userId
+              },
               dueDate: { gte: new Date() }
             }
           })
@@ -56,20 +55,23 @@ class AnalyticsController {
         // 학생 대시보드 통계
         const stats = await prisma.$transaction([
           // 수강 중인 수업 수
-          prisma.classMember.count({
-            where: { userId, role: 'STUDENT' }
+          prisma.classEnrollment.count({
+            where: { studentId: userId }
           }),
-          // 완료한 페이지 수
+          // 완료한 페이지 수 (approximated from study records)
           prisma.studyRecord.count({
-            where: { userId, completed: true }
+            where: { studentId: userId }
           }),
-          // 제출한 과제 수
-          prisma.assignmentSubmission.count({
-            where: { studentId: userId, status: 'SUBMITTED' }
+          // 제출한 과제 수 (approximated from assignments with submissions)
+          prisma.assignment.count({
+            where: { 
+              studentId: userId,
+              submittedAt: { not: null }
+            }
           }),
-          // 획득한 성취도
-          prisma.achievement.count({
-            where: { userId }
+          // Total study records as achievement approximation
+          prisma.studyRecord.count({
+            where: { studentId: userId }
           })
         ]);
         
@@ -93,13 +95,12 @@ class AnalyticsController {
       const prisma = getDatabase();
       
       // 권한 확인
-      const membership = await prisma.classMember.findUnique({
-        where: {
-          userId_classId: { userId, classId }
-        }
+      // Check if user is the teacher of this class
+      const teacherClass = await prisma.class.findUnique({
+        where: { id: classId }
       });
       
-      if (!membership || membership.role !== 'TEACHER') {
+      if (!teacherClass || teacherClass.teacherId !== userId) {
         throw new AppError('Unauthorized', 403);
       }
       
@@ -113,27 +114,22 @@ class AnalyticsController {
             }
           }
         }),
-        prisma.classMember.findMany({
-          where: { classId, role: 'STUDENT' },
-          include: { user: true }
+        prisma.classEnrollment.findMany({
+          where: { classId },
+          include: { student: { include: { user: true } } }
         }),
         prisma.assignment.findMany({
-          where: { classId },
-          include: {
-            submissions: {
-              include: { student: true }
-            }
-          }
+          where: { classId }
         }),
         prisma.studyRecord.findMany({
           where: {
-            user: {
-              classes: {
+            student: {
+              enrollments: {
                 some: { classId }
               }
             }
           },
-          include: { user: true }
+          include: { student: { include: { user: true } } }
         })
       ]);
       
@@ -162,13 +158,11 @@ class AnalyticsController {
       }
       
       if (role === 'TEACHER') {
-        const hasAccess = await prisma.classMember.findFirst({
+        const hasAccess = await prisma.classEnrollment.findFirst({
           where: {
-            userId: studentId,
+            studentId: studentId,
             class: {
-              members: {
-                some: { userId, role: 'TEACHER' }
-              }
+              teacherId: userId
             }
           }
         });
@@ -190,18 +184,20 @@ class AnalyticsController {
           }
         }),
         prisma.studyRecord.findMany({
-          where: { userId: studentId },
-          include: { textbook: true },
-          orderBy: { updatedAt: 'desc' }
+          where: { studentId: studentId },
+          orderBy: { createdAt: 'desc' }
         }),
-        prisma.assignmentSubmission.findMany({
-          where: { studentId },
-          include: { assignment: true },
+        prisma.assignment.findMany({
+          where: { 
+            studentId: studentId,
+            submittedAt: { not: null }
+          },
           orderBy: { submittedAt: 'desc' }
         }),
-        prisma.achievement.findMany({
-          where: { userId: studentId },
-          orderBy: { earnedAt: 'desc' }
+        // Use study records as achievement approximation
+        prisma.studyRecord.findMany({
+          where: { studentId: studentId },
+          orderBy: { createdAt: 'desc' }
         })
       ]);
       
@@ -227,7 +223,7 @@ class AnalyticsController {
       const textbook = await prisma.textbook.findUnique({
         where: { id: textbookId },
         include: {
-          teacher: true,
+          author: { include: { user: true } },
           classes: {
             include: { class: true }
           }
@@ -238,31 +234,48 @@ class AnalyticsController {
         throw new AppError('Textbook not found', 404);
       }
       
-      if (textbook.teacherId !== userId) {
+      if (textbook.authorId !== userId) {
         throw new AppError('Unauthorized', 403);
       }
       
       // 학습 기록 분석
       const studyRecords = await prisma.studyRecord.findMany({
-        where: { textbookId },
-        include: { user: true }
+        where: {
+          // We'll need to relate this through class textbook assignments
+          student: {
+            enrollments: {
+              some: {
+                class: {
+                  textbooks: {
+                    some: {
+                      textbookId: textbookId
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        include: { student: { include: { user: true } } }
       });
       
       // 페이지별 평균 학습 시간
       const pageStats = studyRecords.reduce((acc, record) => {
-        const key = `${record.chapterId}-${record.pageNumber}`;
+        const activityData = record.activityData as any;
+        const key = `${activityData?.chapterId || 'unknown'}-${activityData?.pageNumber || 'unknown'}`;
         if (!acc[key]) {
           acc[key] = {
-            chapterId: record.chapterId,
-            pageNumber: record.pageNumber,
+            chapterId: activityData?.chapterId || 'unknown',
+            pageNumber: activityData?.pageNumber || 'unknown',
             totalTime: 0,
             studentCount: 0,
             completionRate: 0
           };
         }
-        acc[key].totalTime += record.timeSpent;
+        acc[key].totalTime += record.duration || 0;
         acc[key].studentCount += 1;
-        if (record.completed) {
+        // Assume completion based on activity type or score
+        if (record.score && record.score > 0) {
           acc[key].completionRate += 1;
         }
         return acc;
@@ -296,24 +309,23 @@ class AnalyticsController {
         where: { id: textbookId }
       });
       
-      if (!textbook || textbook.teacherId !== userId) {
+      if (!textbook || textbook.authorId !== userId) {
         throw new AppError('Unauthorized', 403);
       }
       
       // 과제 제출 데이터 가져오기
-      const submissions = await prisma.assignmentSubmission.findMany({
+      const submissions = await prisma.assignment.findMany({
         where: {
-          assignment: {
-            class: {
-              textbooks: {
-                some: { textbookId }
-              }
+          class: {
+            textbooks: {
+              some: { textbookId }
             }
-          }
+          },
+          submittedAt: { not: null }
         },
         include: {
-          student: true,
-          assignment: true
+          student: { include: { user: true } },
+          class: true
         }
       });
       
@@ -350,18 +362,18 @@ class AnalyticsController {
       
       // 데이터 행 추가
       submissions.forEach((submission) => {
-        const content = submission.content as any;
-        const responses = content.responses || [];
+        const content = submission.submission as any;
+        const responses = content?.responses || [];
         
         responses.forEach((response: any, index: number) => {
           worksheet.addRow({
             questionId: `Q${index + 1}`,
-            questionText: response.question || submission.assignment.title,
-            studentName: submission.student.name,
-            studentEmail: submission.student.email,
+            questionText: response.question || submission.title,
+            studentName: submission.student?.user?.name || 'Unknown',
+            studentEmail: submission.student?.user?.email || 'Unknown',
             response: response.answer || response.content || '',
             score: response.score || submission.score || '-',
-            submittedAt: format(new Date(submission.submittedAt), 'yyyy-MM-dd HH:mm', { locale: ko })
+            submittedAt: submission.submittedAt ? format(new Date(submission.submittedAt), 'yyyy-MM-dd HH:mm', { locale: ko }) : '-'
           });
         });
       });
@@ -432,13 +444,12 @@ class AnalyticsController {
       
       if (role === 'TEACHER' && userId !== currentUserId) {
         // Verify teacher has access to this student
-        const hasAccess = await this.prisma.classMember.findFirst({
+        const prisma = getDatabase();
+        const hasAccess = await prisma.classEnrollment.findFirst({
           where: {
-            userId: userId,
+            studentId: userId,
             class: {
-              members: {
-                some: { userId: currentUserId, role: 'TEACHER' }
-              }
+              teacherId: currentUserId
             }
           }
         });
@@ -508,36 +519,36 @@ class AnalyticsController {
       
       // Daily active users
       const dailyActiveUsers = await prisma.studyRecord.groupBy({
-        by: ['userId'],
+        by: ['studentId'],
         where: {
-          updatedAt: { gte: startDate }
+          createdAt: { gte: startDate }
         },
         _count: {
-          userId: true
+          studentId: true
         }
       });
       
       // Session duration analysis
       const studyRecords = await prisma.studyRecord.findMany({
         where: {
-          updatedAt: { gte: startDate },
-          timeSpent: { gt: 0 }
+          createdAt: { gte: startDate },
+          duration: { gt: 0 }
         },
         select: {
-          timeSpent: true,
-          userId: true,
-          updatedAt: true
+          duration: true,
+          studentId: true,
+          createdAt: true
         }
       });
       
       // Calculate metrics
       const totalSessions = studyRecords.length;
       const averageSessionDuration = totalSessions > 0 
-        ? studyRecords.reduce((sum, record) => sum + (record.timeSpent || 0), 0) / totalSessions 
+        ? studyRecords.reduce((sum, record) => sum + (record.duration || 0), 0) / totalSessions 
         : 0;
       
       const userSessionCounts = studyRecords.reduce((acc, record) => {
-        acc[record.userId] = (acc[record.userId] || 0) + 1;
+        acc[record.studentId] = (acc[record.studentId] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
       
@@ -576,13 +587,13 @@ class AnalyticsController {
       // Users who were active at the start of the period
       const initialUsers = await prisma.studyRecord.findMany({
         where: {
-          updatedAt: {
+          createdAt: {
             gte: startDate,
             lt: subDays(startDate, -1) // First day of period
           }
         },
-        select: { userId: true },
-        distinct: ['userId']
+        select: { studentId: true },
+        distinct: ['studentId']
       });
       
       if (initialUsers.length === 0) return 0;
@@ -590,14 +601,14 @@ class AnalyticsController {
       // Users who are still active at the end of the period
       const retainedUsers = await prisma.studyRecord.findMany({
         where: {
-          userId: { in: initialUsers.map(u => u.userId) },
-          updatedAt: {
+          studentId: { in: initialUsers.map(u => u.studentId) },
+          createdAt: {
             gte: subDays(endDate, 1), // Last day of period
             lte: endDate
           }
         },
-        select: { userId: true },
-        distinct: ['userId']
+        select: { studentId: true },
+        distinct: ['studentId']
       });
       
       return retainedUsers.length / initialUsers.length;
@@ -613,19 +624,19 @@ class AnalyticsController {
       const startDate = subDays(new Date(), days);
       
       const dailyData = await prisma.studyRecord.groupBy({
-        by: ['updatedAt'],
+        by: ['createdAt'],
         where: {
-          updatedAt: { gte: startDate }
+          createdAt: { gte: startDate }
         },
         _count: {
           id: true,
-          userId: true
+          studentId: true
         }
       });
       
       // Group by date
       const dateGroups = dailyData.reduce((acc, record) => {
-        const date = format(record.updatedAt, 'yyyy-MM-dd');
+        const date = format(record.createdAt, 'yyyy-MM-dd');
         if (!acc[date]) {
           acc[date] = { sessions: 0, userIds: new Set() };
         }
@@ -646,7 +657,6 @@ class AnalyticsController {
     }
   }
 
-  private prisma = getDatabase();
 }
 
 export const analyticsController = new AnalyticsController();

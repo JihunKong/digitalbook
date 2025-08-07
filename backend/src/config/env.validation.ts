@@ -66,7 +66,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   RATE_LIMIT_WINDOW_MS: z.string().transform(Number).default('900000'),
   RATE_LIMIT_MAX_REQUESTS: z.string().transform(Number).default('100'),
-  BCRYPT_ROUNDS: z.string().transform(Number).min(10).max(15).default('12'),
+  BCRYPT_ROUNDS: z.string().transform((val) => Number(val)).pipe(z.number().min(10).max(15)).default('12'),
   VALIDATE_SESSION_IP: z.string().transform(val => val === 'true').default('false'),
   COOKIE_SECRET: z.string().min(32).optional(),
 
@@ -145,7 +145,7 @@ class EnvironmentValidator {
       
       // 환경별 필수 변수 체크
       const nodeEnv = parsed.NODE_ENV;
-      const required = requiredByEnvironment[nodeEnv] || [];
+      const required = requiredByEnvironment[nodeEnv as keyof typeof requiredByEnvironment] || [];
       
       for (const key of required) {
         if (!process.env[key]) {
@@ -189,16 +189,16 @@ class EnvironmentValidator {
   private validateSecurity(config: EnvConfig) {
     // Production에서 기본값 사용 금지
     if (config.NODE_ENV === 'production') {
-      if (config.JWT_SECRET.includes('CHANGE_THIS') || config.JWT_SECRET === 'secret') {
+      if (config.JWT_SECRET && (config.JWT_SECRET.includes('CHANGE_THIS') || config.JWT_SECRET === 'secret')) {
         this.errors.push('JWT_SECRET must be changed from default value in production');
       }
       
-      if (config.JWT_REFRESH_SECRET.includes('CHANGE_THIS')) {
+      if (config.JWT_REFRESH_SECRET && config.JWT_REFRESH_SECRET.includes('CHANGE_THIS')) {
         this.errors.push('JWT_REFRESH_SECRET must be changed from default value in production');
       }
 
       // HTTPS 강제
-      if (!config.NEXT_PUBLIC_API_URL.startsWith('https://')) {
+      if (config.NEXT_PUBLIC_API_URL && !config.NEXT_PUBLIC_API_URL.startsWith('https://')) {
         this.warnings.push('API URL should use HTTPS in production');
       }
 
@@ -214,7 +214,7 @@ class EnvironmentValidator {
     }
 
     // 비밀번호 라운드 체크
-    if (config.BCRYPT_ROUNDS < 10) {
+    if (typeof config.BCRYPT_ROUNDS === 'number' && config.BCRYPT_ROUNDS < 10) {
       this.warnings.push('BCRYPT_ROUNDS should be at least 10 for security');
     }
   }
@@ -251,7 +251,7 @@ class EnvironmentValidator {
     }
 
     // 파일 크기 체크
-    if (config.MAX_FILE_SIZE > 52428800) { // 50MB
+    if (typeof config.MAX_FILE_SIZE === 'number' && config.MAX_FILE_SIZE > 52428800) { // 50MB
       this.warnings.push('MAX_FILE_SIZE is very large (>50MB)');
     }
   }
@@ -270,8 +270,8 @@ class EnvironmentValidator {
     logger.info(`Environment: ${this.config.NODE_ENV}`);
     logger.info(`API Port: ${this.config.PORT}`);
     logger.info(`Frontend Port: ${this.config.FRONTEND_PORT}`);
-    logger.info(`Database: ${this.config.DATABASE_URL.split('@')[1] || 'configured'}`);
-    logger.info(`Redis: ${this.config.REDIS_URL.split('@')[1] || 'configured'}`);
+    logger.info(`Database: ${this.config.DATABASE_URL ? (this.config.DATABASE_URL.split('@')[1] || 'configured') : 'not configured'}`);
+    logger.info(`Redis: ${this.config.REDIS_URL ? (this.config.REDIS_URL.split('@')[1] || 'configured') : 'not configured'}`);
     logger.info(`CORS Origin: ${this.config.CORS_ORIGIN}`);
     logger.info(`Log Level: ${this.config.LOG_LEVEL}`);
     logger.info('=================================');

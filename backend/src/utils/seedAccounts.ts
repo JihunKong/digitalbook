@@ -25,9 +25,8 @@ async function seedAccounts() {
         isActive: true,
         adminProfile: {
           create: {
-            permissions: ['ALL'],
-            lastAccessAt: new Date(),
-            systemNotes: 'Primary system administrator - ClassAppHub.com'
+            department: 'IT',
+            permissions: { all: true }
           }
         }
       }
@@ -50,7 +49,7 @@ async function seedAccounts() {
             create: {
               school: '테스트 초등학교',
               subject: i === 1 ? '국어' : i === 2 ? '수학' : '과학',
-              grade: [5, 6],
+              grade: i === 1 ? '5학년' : i === 2 ? '6학년' : '5-6학년',
               bio: `${i}번 테스트 교사 계정입니다.`,
               experience: 5 + i,
               certifications: ['초등교육 자격증', 'AI 활용 교육 수료']
@@ -76,7 +75,7 @@ async function seedAccounts() {
           studentProfile: {
             create: {
               school: '테스트 초등학교',
-              grade: 5,
+              grade: '5학년',
               className: `5학년 ${Math.ceil(i / 2)}반`,
               studentId: `2024${String(i).padStart(4, '0')}`,
               parentEmail: `parent${i}@test.com`,
@@ -90,10 +89,11 @@ async function seedAccounts() {
 
     // Create demo textbook for testing
     const teacher1 = await prisma.user.findUnique({
-      where: { email: 'teacher1@test.com' }
+      where: { email: 'teacher1@test.com' },
+      include: { teacherProfile: true }
     });
 
-    if (teacher1) {
+    if (teacher1?.teacherProfile) {
       const textbook = await prisma.textbook.upsert({
         where: { 
           id: 'demo-textbook-1'
@@ -103,10 +103,10 @@ async function seedAccounts() {
           id: 'demo-textbook-1',
           title: 'AI 시대의 한국어 교육',
           description: 'OpenAI TTS를 활용한 차세대 한국어 학습 교재',
-          subject: '국어',
-          grade: 5,
-          chapters: {
-            create: [
+          authorId: teacher1.teacherProfile.id,
+          isPublic: true,
+          content: {
+            chapters: [
               {
                 order: 1,
                 title: '1장: 한글의 아름다움',
@@ -121,8 +121,6 @@ async function seedAccounts() {
               }
             ]
           },
-          userId: teacher1.id,
-          isPublic: true,
           metadata: {
             ttsEnabled: true,
             defaultVoice: 'nova',

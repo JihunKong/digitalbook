@@ -18,7 +18,13 @@ interface TokenPayload {
 
 // 확장된 Request 타입
 interface AuthRequest extends Request {
-  user?: TokenPayload & { sessionId?: string };
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    role: 'ADMIN' | 'TEACHER';
+    sessionId?: string;
+  };
 }
 
 class UnifiedAuthController {
@@ -188,11 +194,10 @@ class UnifiedAuthController {
       };
 
       // 토큰 생성
-      const accessToken = jwt.sign(tokenPayload, this.JWT_SECRET!, {
+      const accessToken = jwt.sign(tokenPayload as object, this.JWT_SECRET!, {
         expiresIn: this.ACCESS_TOKEN_EXPIRES
       });
-
-      const refreshToken = jwt.sign(tokenPayload, this.JWT_REFRESH_SECRET!, {
+      const refreshToken = jwt.sign(tokenPayload as object, this.JWT_REFRESH_SECRET!, {
         expiresIn: rememberMe ? '30d' : this.REFRESH_TOKEN_EXPIRES
       });
 
@@ -347,7 +352,7 @@ class UnifiedAuthController {
           email: user.email,
           name: user.name,
           role: user.role
-        },
+        } as object,
         this.JWT_SECRET!,
         { expiresIn: this.ACCESS_TOKEN_EXPIRES }
       );
@@ -399,10 +404,10 @@ class UnifiedAuthController {
       }
 
       // 사용자 활동 로그 (인증된 경우에만)
-      if (req.user?.userId) {
+      if (req.user?.id) {
         await prisma.userActivity.create({
           data: {
-            userId: req.user.userId,
+            userId: req.user.id,
             action: 'LOGOUT',
             ipAddress: req.ip,
             userAgent: req.headers['user-agent']
@@ -435,7 +440,7 @@ class UnifiedAuthController {
 
       const prisma = getDatabase();
       const user = await prisma.user.findUnique({
-        where: { id: req.user.userId },
+        where: { id: req.user.id },
         include: {
           teacherProfile: true,
           studentProfile: true,
@@ -501,7 +506,7 @@ class UnifiedAuthController {
           guestId: guestAccess.id,
           accessCode,
           role: 'GUEST'
-        },
+        } as object,
         this.JWT_SECRET!,
         { expiresIn: duration }
       );

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { StudentDemoTour, InteractiveLearningDemo } from '@/components/demo/StudentDemoTour'
+import { DemoModeToggle } from '@/components/DemoModeBanner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +12,7 @@ import { Progress } from '@/components/ui/progress'
 import { 
   BookOpen, Clock, CheckCircle, TrendingUp, LogOut, Play, FileText,
   Trophy, MessageSquare, Sparkles, Target, Zap, Award, Star,
-  Flame, Heart, Gift
+  Flame, Heart, Gift, Settings, Library, Brain
 } from 'lucide-react'
 
 interface StudentStats {
@@ -181,6 +182,32 @@ export default function StudentDashboard() {
                   <Flame className="w-4 h-4 mr-1 text-orange-500" />
                   {stats.streak}일 연속
                 </Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/student/library">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Library className="w-4 h-4" />
+                    도서관
+                  </Button>
+                </Link>
+                <Link href="/student/my-learning">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Brain className="w-4 h-4" />
+                    내 학습
+                  </Button>
+                </Link>
+                <Link href="/student/achievements">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Trophy className="w-4 h-4" />
+                    성취
+                  </Button>
+                </Link>
+                <Link href="/student/settings">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Settings className="w-4 h-4" />
+                    설정
+                  </Button>
+                </Link>
               </div>
               <span className="text-sm text-gray-600">안녕하세요, {user?.name || '학생'}님!</span>
               <Button
@@ -426,6 +453,9 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+      
+      {/* Demo Mode Toggle */}
+      <DemoModeToggle />
     </div>
   )
 }

@@ -119,19 +119,18 @@ export class SocketService {
       // If teacher, join all their class rooms
       if (socket.userRole === 'TEACHER') {
         const prisma = getDatabase();
-        const classes = await prisma.classMember.findMany({
-          where: { userId: socket.userId, role: 'TEACHER' },
-          include: { class: true },
+        const classes = await prisma.class.findMany({
+          where: { teacherId: socket.userId },
         });
         
         for (const classData of classes) {
-          socket.join(`class:${classData.classId}`);
+          socket.join(`class:${classData.id}`);
           
           // Notify students in the class that teacher is online
-          socket.to(`class:${classData.classId}`).emit('teacher:online', {
+          socket.to(`class:${classData.id}`).emit('teacher:online', {
             teacherId: socket.userId,
             teacherName: socket.userEmail,
-            className: classData.class.name,
+            className: classData.name,
           });
         }
       }
@@ -161,12 +160,12 @@ export class SocketService {
           // If teacher, notify students they're offline
           if (socket.userRole === 'TEACHER') {
             const prisma = getDatabase();
-            const classes = await prisma.classMember.findMany({
-              where: { userId: socket.userId, role: 'TEACHER' },
+            const classes = await prisma.class.findMany({
+              where: { teacherId: socket.userId },
             });
             
             for (const classData of classes) {
-              this.io.to(`class:${classData.classId}`).emit('teacher:offline', {
+              this.io.to(`class:${classData.id}`).emit('teacher:offline', {
                 teacherId: socket.userId,
                 teacherName: socket.userEmail,
               });
@@ -197,8 +196,8 @@ export class SocketService {
       // Broadcast to teachers in the same class
       if (socket.userRole === 'STUDENT') {
         const prisma = getDatabase();
-        const studentClasses = await prisma.classMember.findMany({
-          where: { userId: socket.userId },
+        const studentClasses = await prisma.classEnrollment.findMany({
+          where: { studentId: socket.userId },
           include: { class: true },
         });
         

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { TeacherDemoTour } from '@/components/demo/TeacherDemoTour'
+import { DemoModeToggle } from '@/components/DemoModeBanner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,7 +12,8 @@ import { Progress } from '@/components/ui/progress'
 import { 
   BookOpen, BarChart, Calendar, TrendingUp, Award, Sparkles,
   Clock, ChevronRight, GraduationCap, Activity, Users,
-  MessageSquare, FileText, Plus, Eye, Upload, Zap
+  MessageSquare, FileText, Plus, Eye, Upload, Zap, Settings,
+  Library, Bookmark
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -108,11 +110,11 @@ export default function TeacherDashboard() {
       id: 'create-textbook-btn'
     },
     {
-      title: '학생 관리',
+      title: '학급 관리',
       description: '학급 및 학생 관리',
       icon: Users,
       color: 'bg-green-500',
-      href: '/teacher/students',
+      href: '/teacher/classes',
       id: 'class-management'
     },
     {
@@ -155,10 +157,26 @@ export default function TeacherDashboard() {
                 <Sparkles className="w-4 h-4 mr-1" />
                 AI 크레딧: 1,000
               </Badge>
-              <Button variant="outline" size="sm">
-                <MessageSquare className="w-4 h-4 mr-2" />
-                지원
-              </Button>
+              <div className="flex items-center gap-2">
+                <Link href="/teacher/library">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Library className="w-4 h-4" />
+                    라이브러리
+                  </Button>
+                </Link>
+                <Link href="/teacher/assignments">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <FileText className="w-4 h-4" />
+                    과제
+                  </Button>
+                </Link>
+                <Link href="/teacher/settings">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Settings className="w-4 h-4" />
+                    설정
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -362,6 +380,9 @@ export default function TeacherDashboard() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Demo Mode Toggle */}
+      <DemoModeToggle />
     </div>
   )
 }

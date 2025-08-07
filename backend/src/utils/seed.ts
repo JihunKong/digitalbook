@@ -16,7 +16,17 @@ async function seed() {
         password: teacherPassword,
         name: '김선생',
         role: 'TEACHER',
+        teacherProfile: {
+          create: {
+            school: '데모초등학교',
+            subject: '국어',
+            grade: '3학년',
+          }
+        }
       },
+      include: {
+        teacherProfile: true
+      }
     });
     
     // Create demo students
@@ -28,7 +38,18 @@ async function seed() {
           password: studentPassword,
           name: '이학생',
           role: 'STUDENT',
+          studentProfile: {
+            create: {
+              studentId: 'STU001',
+              school: '데모초등학교',
+              grade: '3학년',
+              className: '1반'
+            }
+          }
         },
+        include: {
+          studentProfile: true
+        }
       }),
       prisma.user.create({
         data: {
@@ -36,7 +57,18 @@ async function seed() {
           password: studentPassword,
           name: '박학생',
           role: 'STUDENT',
+          studentProfile: {
+            create: {
+              studentId: 'STU002',
+              school: '데모초등학교',
+              grade: '3학년',
+              className: '1반'
+            }
+          }
         },
+        include: {
+          studentProfile: true
+        }
       }),
     ]);
     
@@ -46,33 +78,26 @@ async function seed() {
         name: '3학년 1반',
         description: '2024학년도 3학년 1반 국어 수업',
         code: 'KOR301',
+        teacherId: teacher.teacherProfile!.id,
+        subject: '국어',
+        grade: '3학년'
       },
     });
     
-    // Add members to class
-    await prisma.classMember.createMany({
-      data: [
-        {
-          userId: teacher.id,
-          classId: demoClass.id,
-          role: 'TEACHER',
-        },
-        ...students.map(student => ({
-          userId: student.id,
-          classId: demoClass.id,
-          role: 'STUDENT' as const,
-        })),
-      ],
+    // Add students to class via enrollments
+    await prisma.classEnrollment.createMany({
+      data: students.map(student => ({
+        studentId: student.studentProfile!.id,
+        classId: demoClass.id,
+      })),
     });
     
     // Create demo textbook
     const textbook = await prisma.textbook.create({
       data: {
         title: '국어 3-1',
-        subject: '국어',
-        grade: 3,
-        teacherId: teacher.id,
-        isPublished: true,
+        authorId: teacher.teacherProfile!.id,
+        isPublic: true,
         content: {
           chapters: [
             {
@@ -116,20 +141,10 @@ async function seed() {
       data: {
         title: '일기 쓰기',
         description: '오늘 있었던 일을 일기로 써 보세요',
-        type: 'WRITING',
+        type: 'ESSAY',
         classId: demoClass.id,
-        teacherId: teacher.id,
         dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week from now
         points: 100,
-        content: {
-          instructions: '최소 200자 이상 작성하세요',
-          rubric: {
-            grammar: 25,
-            creativity: 25,
-            structure: 25,
-            spelling: 25,
-          },
-        },
       },
     });
     

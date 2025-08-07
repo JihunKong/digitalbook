@@ -8,17 +8,16 @@ async function testSeed() {
     console.log('🌱 Starting test database seeding...');
 
     // Clean existing data
-    await prisma.guestChatMessage.deleteMany();
-    await prisma.guestStudyRecord.deleteMany();
     await prisma.guestAccess.deleteMany();
-    await prisma.chatMessage.deleteMany();
-    await prisma.assignmentSubmission.deleteMany();
     await prisma.assignment.deleteMany();
     await prisma.studyRecord.deleteMany();
     await prisma.classTextbook.deleteMany();
-    await prisma.classMember.deleteMany();
+    await prisma.classEnrollment.deleteMany();
     await prisma.class.deleteMany();
     await prisma.textbook.deleteMany();
+    await prisma.teacherProfile.deleteMany();
+    await prisma.studentProfile.deleteMany();
+    await prisma.adminProfile.deleteMany();
     await prisma.user.deleteMany();
 
     // Create test users
@@ -30,7 +29,17 @@ async function testSeed() {
         password: hashedPassword,
         name: '테스트 선생님',
         role: 'TEACHER',
+        teacherProfile: {
+          create: {
+            school: '테스트초등학교',
+            subject: '국어',
+            grade: '3학년'
+          }
+        }
       },
+      include: {
+        teacherProfile: true
+      }
     });
 
     const student = await prisma.user.create({
@@ -39,19 +48,26 @@ async function testSeed() {
         password: hashedPassword,
         name: '테스트 학생',
         role: 'STUDENT',
+        studentProfile: {
+          create: {
+            studentId: 'TEST001',
+            school: '테스트초등학교',
+            grade: '3학년',
+            className: '1반'
+          }
+        }
       },
+      include: {
+        studentProfile: true
+      }
     });
 
     // Create test textbook
     const textbook = await prisma.textbook.create({
       data: {
         title: '테스트 국어 교과서',
-        subject: '국어',
-        grade: 3,
-        teacherId: teacher.id,
-        isPublished: true,
+        authorId: teacher.teacherProfile!.id,
         isPublic: true,
-        accessCode: 'TEST123',
         content: {
           chapters: [
             {
@@ -88,23 +104,18 @@ async function testSeed() {
         name: '테스트 3학년 1반',
         description: '테스트용 학급입니다',
         code: 'TEST3-1',
+        teacherId: teacher.teacherProfile!.id,
+        subject: '국어',
+        grade: '3학년'
       },
     });
 
-    // Add members to class
-    await prisma.classMember.createMany({
-      data: [
-        {
-          userId: teacher.id,
-          classId: testClass.id,
-          role: 'TEACHER',
-        },
-        {
-          userId: student.id,
-          classId: testClass.id,
-          role: 'STUDENT',
-        },
-      ],
+    // Add student to class
+    await prisma.classEnrollment.create({
+      data: {
+        studentId: student.studentProfile!.id,
+        classId: testClass.id,
+      },
     });
 
     // Assign textbook to class
@@ -118,10 +129,14 @@ async function testSeed() {
     // Create guest access for testing
     await prisma.guestAccess.create({
       data: {
+        accessCode: 'TESTGUEST123',
         textbookId: textbook.id,
-        studentId: '20241234',
-        studentName: '테스트 게스트',
-        sessionId: 'test-session-123',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+        maxQuestions: 10,
+        metadata: {
+          studentName: '테스트 게스트',
+          sessionId: 'test-session-123'
+        }
       },
     });
 
@@ -129,7 +144,7 @@ async function testSeed() {
     console.log('📚 Created:');
     console.log(`  - Teacher: ${teacher.email}`);
     console.log(`  - Student: ${student.email}`);
-    console.log(`  - Textbook: ${textbook.title} (Access Code: ${textbook.accessCode})`);
+    console.log(`  - Textbook: ${textbook.title}`);
     console.log(`  - Class: ${testClass.name}`);
   } catch (error) {
     console.error('❌ Error seeding test database:', error);
