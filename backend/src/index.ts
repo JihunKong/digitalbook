@@ -246,11 +246,13 @@ async function gracefulShutdown(signal: string) {
       }
       
       // Close database connections
-      await initializeDatabase().then(db => db.$disconnect());
+      const db = await initializeDatabase();
+      await db.$disconnect();
       logger.info('Database connections closed');
       
       // Close Redis connection
-      await initializeRedis().then(redis => redis.quit());
+      const redis = await initializeRedis();
+      await redis.quit();
       logger.info('Redis connection closed');
       
       logger.info('Graceful shutdown completed');
