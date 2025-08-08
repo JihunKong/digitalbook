@@ -42,7 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await fetch('/api/auth/login', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://xn--220bu63c.com/api';
+      const response = await fetch(`${apiUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -52,16 +53,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Login failed');
+        throw new Error(error.error || error.message || 'Login failed');
       }
 
       const data = await response.json();
       
-      // Store in localStorage
-      localStorage.setItem('token', data.token);
+      // Store in localStorage - map accessToken to token for compatibility
+      const tokenToStore = data.accessToken || data.token;
+      localStorage.setItem('token', tokenToStore);
+      localStorage.setItem('refreshToken', data.refreshToken || '');
       localStorage.setItem('user', JSON.stringify(data.user));
       
-      setToken(data.token);
+      setToken(tokenToStore);
       setUser(data.user);
 
       // Redirect based on role
@@ -91,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);

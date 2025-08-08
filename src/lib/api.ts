@@ -10,13 +10,16 @@ interface ApiResponse<T = any> {
 
 class ApiClient {
   private baseURL: string
-  private token: string | null = null
 
   constructor() {
     this.baseURL = API_BASE_URL
+  }
+
+  private getToken(): string | null {
     if (typeof window !== 'undefined') {
-      this.token = localStorage.getItem('token')
+      return localStorage.getItem('token')
     }
+    return null
   }
 
   private isDemoMode(): boolean {
@@ -31,16 +34,15 @@ class ApiClient {
   }
 
   setToken(token: string) {
-    this.token = token
     if (typeof window !== 'undefined') {
       localStorage.setItem('token', token)
     }
   }
 
   removeToken() {
-    this.token = null
     if (typeof window !== 'undefined') {
       localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
     }
   }
 
@@ -50,10 +52,11 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`
     
+    const token = this.getToken()
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
-        ...(this.token && { Authorization: `Bearer ${this.token}` }),
+        ...(token && { Authorization: `Bearer ${token}` }),
         ...(this.isDemoMode() && { 'X-Demo-Mode': 'true' }),
         ...options.headers,
       },
@@ -455,10 +458,11 @@ class ApiClient {
     // For progress tracking, we'd need a more complex implementation
     // This is a simplified version
     try {
+      const token = this.getToken()
       const response = await fetch(`${this.baseURL}/multimedia/upload`, {
         method: 'POST',
         headers: {
-          ...(this.token && { Authorization: `Bearer ${this.token}` }),
+          ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: formData,
       })

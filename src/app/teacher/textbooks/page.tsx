@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { TeacherDemoTour } from '@/components/demo/TeacherDemoTour'
 import { Button } from '@/components/ui/button'
+import { apiClient } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import { 
   Plus, 
   BookOpen, 
@@ -19,7 +22,9 @@ import {
   ChevronRight,
   Sparkles,
   Globe,
-  Lock
+  Lock,
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -47,6 +52,7 @@ export default function TeacherTextbooksPage() {
   const router = useRouter()
   const [textbooks, setTextbooks] = useState<Textbook[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<{ message: string; statusCode: number } | null>(null)
   const [view, setView] = useState<'grid' | 'list'>('grid')
 
   useEffect(() => {
@@ -55,45 +61,61 @@ export default function TeacherTextbooksPage() {
 
   const fetchTextbooks = async () => {
     try {
-      const response = await fetch('/api/textbooks', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+      // Debug: Log the token being sent
+      const token = localStorage.getItem('token')
+      console.log('Current token in localStorage:', token ? `${token.substring(0, 20)}...` : 'No token found')
+      console.log('Token format check:', {
+        hasToken: !!token,
+        startsWithBearer: token?.startsWith('Bearer '),
+        length: token?.length
       })
       
-      if (response.ok) {
-        const data = await response.json()
-        setTextbooks(data.textbooks || [])
+      // If token already includes "Bearer ", remove it from localStorage and save the clean token
+      if (token && token.startsWith('Bearer ')) {
+        const cleanToken = token.replace('Bearer ', '')
+        localStorage.setItem('token', cleanToken)
+        console.log('Fixed token format in localStorage')
+      }
+      
+      const response = await apiClient.getTextbooks()
+      console.log('API Response:', response)
+      
+      if (response.data && Array.isArray(response.data)) {
+        // Transform backend data to match frontend interface
+        const transformedTextbooks = (response.data as any[]).map((textbook: any) => ({
+          id: textbook.id,
+          title: textbook.title,
+          subject: textbook.metadata?.subject || textbook.subject || 'Unknown',
+          grade: textbook.metadata?.grade || textbook.grade || 'Unknown',
+          isPublic: textbook.isPublic || false,
+          coverImage: textbook.coverImage,
+          chapters: textbook.content?.chapters?.length || 0,
+          students: textbook.classes?.reduce((acc: number, cls: any) => 
+            acc + (cls.class?._count?.enrollments || 0), 0) || 0,
+          lastModified: textbook.updatedAt || textbook.createdAt,
+          createdAt: textbook.createdAt,
+          aiGenerated: textbook.aiGenerated || false
+        }))
+        
+        console.log('Fetched and transformed textbooks:', transformedTextbooks)
+        setTextbooks(transformedTextbooks)
+      } else if (response.error) {
+        console.error('API error:', response.error)
+        // Show error to user instead of dummy data
+        setError({
+          message: response.error.message || 'Failed to load textbooks',
+          statusCode: response.error.statusCode
+        })
+        setTextbooks([]) // Set empty array instead of dummy data
       }
     } catch (error) {
       console.error('Failed to fetch textbooks:', error)
-      // 데모 데이터
-      setTextbooks([
-        {
-          id: '1',
-          title: '3학년 1학기 국어',
-          subject: '국어',
-          grade: '3학년',
-          isPublic: true,
-          chapters: 8,
-          students: 25,
-          lastModified: '2024-01-15',
-          createdAt: '2024-01-10',
-          aiGenerated: true
-        },
-        {
-          id: '2',
-          title: '수학의 즐거움',
-          subject: '수학',
-          grade: '3학년',
-          isPublic: false,
-          chapters: 10,
-          students: 23,
-          lastModified: '2024-01-14',
-          createdAt: '2024-01-05',
-          aiGenerated: true
-        }
-      ])
+      // Show error to user instead of dummy data
+      setError({
+        message: error instanceof Error ? error.message : 'Network error occurred',
+        statusCode: 0
+      })
+      setTextbooks([]) // Set empty array instead of dummy data
     } finally {
       setLoading(false)
     }
@@ -101,18 +123,40 @@ export default function TeacherTextbooksPage() {
 
   const handleDuplicate = async (textbook: Textbook) => {
     try {
-      const response = await fetch(`/api/textbooks/${textbook.id}/duplicate`, {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        console.error('No authentication token found')
+        setError({
+          message: 'You must be logged in to duplicate textbooks',
+          statusCode: 401
+        })
+        return
+      }
+
+      // Use fetch with proper headers since apiClient doesn't have a duplicate method
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://xn--220bu63c.com/api'}/textbooks/${textbook.id}/duplicate`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         }
       })
       
-      if (response.ok) {
-        fetchTextbooks()
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
       }
+      
+      const data = await response.json()
+      console.log('Textbook duplicated successfully:', data)
+      // Refresh the textbook list
+      fetchTextbooks()
     } catch (error) {
       console.error('Failed to duplicate textbook:', error)
+      setError({
+        message: 'Failed to duplicate textbook. Please try again.',
+        statusCode: 0
+      })
     }
   }
 
@@ -186,7 +230,97 @@ export default function TeacherTextbooksPage() {
         </div>
       </div>
 
+      {/* Error Display */}
+      {error && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error Loading Textbooks</AlertTitle>
+            <AlertDescription className="mt-2">
+              <p>{error.message}</p>
+              {error.statusCode === 401 && (
+                <p className="mt-1 text-sm">
+                  Your session may have expired. Please try logging in again.
+                </p>
+              )}
+              {error.statusCode === 0 && (
+                <p className="mt-1 text-sm">
+                  Unable to connect to the server. Please check your internet connection.
+                </p>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => {
+                  setError(null)
+                  setLoading(true)
+                  fetchTextbooks()
+                }}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && !error && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {/* Skeleton Cards */}
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-1/2 mt-2" />
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Skeleton className="w-full h-32 rounded-lg" />
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-6 w-16" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Skeleton className="h-6 w-20" />
+                      <Skeleton className="h-6 w-28" />
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Skeleton className="h-9 flex-1" />
+                      <Skeleton className="h-9 flex-1" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && textbooks.length === 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+          <div className="text-center py-12">
+            <BookOpen className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-semibold text-gray-900">No textbooks yet</h3>
+            <p className="mt-1 text-sm text-gray-500">Get started by creating your first AI-powered textbook.</p>
+            <div className="mt-6">
+              <Link href="/teacher/textbooks/create">
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create First Textbook
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Textbooks Grid */}
+      {!loading && !error && textbooks.length > 0 && (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
         <div id="textbook-list" className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {textbooks.map((textbook) => (
@@ -306,6 +440,7 @@ export default function TeacherTextbooksPage() {
           </Card>
         </div>
       </div>
+      )}
     </div>
   )
 }
