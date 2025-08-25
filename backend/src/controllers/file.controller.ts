@@ -98,11 +98,12 @@ class FileController {
     const prisma = getDatabase();
     
     try {
-      if (!req.file) {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const file = files?.file?.[0];
+      
+      if (!file) {
         throw new AppError('No file uploaded', 400);
       }
-      
-      const file = req.file;
       const userId = (req as any).userId;
       
       // Extract text from the uploaded file

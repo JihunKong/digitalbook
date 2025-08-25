@@ -11,7 +11,7 @@ router.use(authenticate);
 router.post(
   '/upload',
   requireRole(['TEACHER', 'ADMIN']),
-  upload.single('file'),
+  upload.fields([{ name: 'file', maxCount: 1 }]),
   fileController.uploadDocument
 );
 
