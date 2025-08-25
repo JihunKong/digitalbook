@@ -1,57 +1,54 @@
 import { Router } from 'express';
 import pdfController, { upload } from '../controllers/pdf.controller';
-import { authenticateTeacher, authenticateUser } from '../middlewares/auth';
+import { authenticateTeacher, authenticateUser, requireRole } from '../middlewares/auth';
 
 const router = Router();
 
-// Teacher routes (require teacher authentication)
+// All PDF routes require authentication
+router.use(authenticateUser);
+
+// Teacher/Admin routes (require teacher or admin role)
 router.post(
   '/upload',
-  authenticateTeacher,
+  requireRole(['TEACHER', 'ADMIN']),
   upload.single('pdf'),
   pdfController.uploadPDF.bind(pdfController)
 );
 
 router.delete(
   '/:id',
-  authenticateTeacher,
+  requireRole(['TEACHER', 'ADMIN']),
   pdfController.deletePDF.bind(pdfController)
 );
 
-// General routes (any authenticated user)
+// General routes (already authenticated by router.use above)
 router.get(
   '/:id',
-  authenticateUser,
   pdfController.getPDFInfo.bind(pdfController)
 );
 
 router.get(
   '/:id/page/:pageNum',
-  authenticateUser,
   pdfController.getPageContent.bind(pdfController)
 );
 
 router.post(
   '/:id/track',
-  authenticateUser,
   pdfController.trackPageView.bind(pdfController)
 );
 
 router.get(
   '/:id/tracking',
-  authenticateUser,
   pdfController.getCurrentTracking.bind(pdfController)
 );
 
 router.get(
   '/:id/search',
-  authenticateUser,
   pdfController.searchPDF.bind(pdfController)
 );
 
 router.get(
   '/class/:classId',
-  authenticateUser,
   pdfController.getClassPDFs.bind(pdfController)
 );
 

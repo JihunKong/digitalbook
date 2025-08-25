@@ -34,7 +34,25 @@ export const authenticateTeacher = async (
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
 
+    // Enhanced debugging for 403 issues
+    logger.info('Teacher authentication attempt', {
+      path: req.path,
+      method: req.method,
+      hasToken: !!token,
+      tokenPrefix: token ? token.substring(0, 20) + '...' : 'none',
+      userAgent: req.get('User-Agent'),
+      ip: req.ip,
+      headers: {
+        authorization: req.headers.authorization ? 'present' : 'missing',
+        contentType: req.headers['content-type'],
+      }
+    });
+
     if (!token) {
+      logger.warn('Teacher auth failed: No token provided', {
+        path: req.path,
+        ip: req.ip
+      });
       return res.status(401).json({ error: '인증 토큰이 필요합니다.' });
     }
 
@@ -45,6 +63,12 @@ export const authenticateTeacher = async (
     }
     
     const decoded = jwt.verify(token, jwtSecret) as any;
+    logger.info('JWT token decoded successfully', {
+      userId: decoded.userId,
+      role: decoded.role,
+      exp: decoded.exp,
+      iat: decoded.iat
+    });
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
@@ -53,9 +77,30 @@ export const authenticateTeacher = async (
       }
     });
 
-    if (!user || user.role !== 'TEACHER') {
-      return res.status(401).json({ error: '교사 권한이 필요합니다.' });
+    if (!user) {
+      logger.warn('Teacher auth failed: User not found in database', {
+        decodedUserId: decoded.userId,
+        path: req.path
+      });
+      return res.status(401).json({ error: '사용자를 찾을 수 없습니다.' });
     }
+
+    if (user.role !== 'TEACHER') {
+      logger.warn('Teacher auth failed: Insufficient role', {
+        userId: user.id,
+        userRole: user.role,
+        requiredRole: 'TEACHER',
+        path: req.path
+      });
+      return res.status(403).json({ error: '교사 권한이 필요합니다.' });
+    }
+
+    logger.info('Teacher authentication successful', {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role
+    });
 
     req.user = {
       userId: user.id,
@@ -66,7 +111,21 @@ export const authenticateTeacher = async (
 
     next();
   } catch (error) {
-    console.error('교사 인증 오류:', error);
+    logger.error('Teacher authentication error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      path: req.path,
+      method: req.method
+    });
+    
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ error: '유효하지 않은 토큰입니다.' });
+    }
+    
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ error: '토큰이 만료되었습니다.' });
+    }
+    
     return res.status(401).json({ error: '인증에 실패했습니다.' });
   }
 };
@@ -315,11 +374,47 @@ export const requireRole = (roles: string[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = (req as any).user;
-      if (!user || !roles.includes(user.role)) {
+      
+      logger.info('Role authorization attempt', {
+        path: req.path,
+        method: req.method,
+        requiredRoles: roles,
+        userRole: user?.role || 'none',
+        userId: user?.userId || 'anonymous',
+        hasUser: !!user
+      });
+      
+      if (!user) {
+        logger.warn('Role auth failed: No user context', {
+          path: req.path,
+          requiredRoles: roles
+        });
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      
+      if (!roles.includes(user.role)) {
+        logger.warn('Role auth failed: Insufficient role', {
+          path: req.path,
+          userRole: user.role,
+          requiredRoles: roles,
+          userId: user.userId
+        });
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
+      
+      logger.info('Role authorization successful', {
+        path: req.path,
+        userRole: user.role,
+        userId: user.userId
+      });
+      
       next();
     } catch (error) {
+      logger.error('Role authorization error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        path: req.path,
+        method: req.method
+      });
       res.status(500).json({ error: 'Authorization error' });
     }
   };
