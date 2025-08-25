@@ -38,6 +38,9 @@ interface DashboardStats {
   totalStudents: number
   totalClasses: number
   weeklyProgress: number
+  aiCredits?: number
+  aiUsageCount?: number
+  activeUsersPercentage?: number
   recentActivities: Activity[]
   upcomingAssignments: Assignment[]
 }
@@ -192,7 +195,7 @@ export default function TeacherDashboard() {
             <div className="flex items-center gap-4">
               <Badge variant="secondary" className="px-3 py-1">
                 <Sparkles className="w-4 h-4 mr-1" />
-                AI 크레딧: 1,000
+                AI 크레딧: {stats.aiCredits || 0}
               </Badge>
               <div className="flex items-center gap-2">
                 <Link href="/teacher/library">
@@ -243,7 +246,7 @@ export default function TeacherDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalStudents}</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-600">95%</span> 활성 사용자
+                <span className="text-green-600">{stats.activeUsersPercentage || 0}%</span> 활성 사용자
               </p>
             </CardContent>
           </Card>
@@ -267,7 +270,7 @@ export default function TeacherDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">높음</div>
               <p className="text-xs text-muted-foreground">
-                콘텐츠 생성 15회
+                콘텐츠 생성 {stats.aiUsageCount || 0}회
               </p>
             </CardContent>
           </Card>
@@ -425,9 +428,17 @@ export default function TeacherDashboard() {
               <div className="text-center py-8 text-red-500">
                 AI 인사이트를 불러올 수 없습니다.
               </div>
+            ) : stats.totalTextbooks === 0 && stats.totalStudents === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <div className="mb-4">📊</div>
+                <p className="font-medium mb-2">아직 데이터가 없습니다</p>
+                <p className="text-sm">교과서를 생성하고 학생들을 초대하면 AI 인사이트를 제공해드려요.</p>
+              </div>
             ) : (
               <div className="text-center py-8 text-gray-500">
-                충분한 데이터가 쌓이면 AI 인사이트를 제공해드릴게요.
+                <div className="mb-4">🤖</div>
+                <p className="font-medium mb-2">AI 분석 중입니다</p>
+                <p className="text-sm">더 많은 데이터가 쌓이면 상세한 인사이트를 제공해드릴게요.</p>
               </div>
             )}
           </CardContent>

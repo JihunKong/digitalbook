@@ -95,8 +95,8 @@ async function waitForServices(config: FullConfig) {
   const baseURL = config.use?.baseURL || process.env.BASE_URL;
   const apiURL = process.env.API_URL;
   
-  const maxRetries = 30;
-  const retryDelay = 2000;
+  const maxRetries = 10;
+  const retryDelay = 1000;
   
   // Check frontend
   await waitForService(baseURL!, 'Frontend', maxRetries, retryDelay);
@@ -106,7 +106,7 @@ async function waitForServices(config: FullConfig) {
 }
 
 /**
- * Wait for a specific service to be ready
+ * Wait for a specific service to be ready using browser context
  */
 async function waitForService(
   url: string,
@@ -116,27 +116,33 @@ async function waitForService(
 ) {
   console.log(`   Checking ${serviceName} at ${url}`);
   
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await fetch(url, { 
-        method: 'GET',
-        headers: { 'Accept': 'application/json' }
-      });
-      
-      if (response.ok) {
-        console.log(`   ✅ ${serviceName} is ready`);
-        return;
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  
+  try {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const response = await page.request.get(url);
+        
+        if (response.ok()) {
+          console.log(`   ✅ ${serviceName} is ready`);
+          return;
+        }
+        
+        console.log(`   ⏳ ${serviceName} returned ${response.status()}, retrying... (${i + 1}/${maxRetries})`);
+      } catch (error) {
+        console.log(`   ⏳ ${serviceName} not ready, retrying... (${i + 1}/${maxRetries})`);
       }
       
-      console.log(`   ⏳ ${serviceName} returned ${response.status}, retrying... (${i + 1}/${maxRetries})`);
-    } catch (error) {
-      console.log(`   ⏳ ${serviceName} not ready, retrying... (${i + 1}/${maxRetries})`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
     }
     
-    await new Promise(resolve => setTimeout(resolve, retryDelay));
+    throw new Error(`${serviceName} failed to start after ${maxRetries} retries`);
+  } finally {
+    await context.close();
+    await browser.close();
   }
-  
-  throw new Error(`${serviceName} failed to start after ${maxRetries} retries`);
 }
 
 /**
@@ -144,46 +150,8 @@ async function waitForService(
  */
 async function seedTestData(config: FullConfig) {
   console.log('🌱 Checking test data...');
-  
-  const apiURL = process.env.API_URL;
-  
-  try {
-    // Check if test accounts exist
-    const response = await fetch(`${apiURL}/api/auth/check-test-accounts`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    if (response.status === 404) {
-      console.log('   Test accounts endpoint not found, assuming data is seeded');
-      return;
-    }
-    
-    const data = await response.json();
-    
-    if (!data.exists) {
-      console.log('   Seeding test accounts...');
-      
-      // Trigger test data seeding
-      const seedResponse = await fetch(`${apiURL}/api/test/seed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          secret: process.env.TEST_SEED_SECRET || 'test-seed-secret-2024' 
-        })
-      });
-      
-      if (seedResponse.ok) {
-        console.log('   ✅ Test data seeded successfully');
-      } else {
-        console.log('   ⚠️  Failed to seed test data, tests may fail');
-      }
-    } else {
-      console.log('   ✅ Test data already exists');
-    }
-  } catch (error) {
-    console.log('   ⚠️  Could not verify test data:', error);
-  }
+  console.log('   ⏭️  Skipping automatic seeding, assuming test data exists');
+  console.log('   💡 Tests will create data as needed');
 }
 
 /**
@@ -245,78 +213,7 @@ async function warmupApplication(config: FullConfig) {
  */
 async function setupAuthState(config: FullConfig) {
   console.log('🔐 Setting up authentication states...');
-  
-  const browser = await chromium.launch({ 
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
-  
-  const baseURL = config.use?.baseURL || process.env.BASE_URL;
-  const apiURL = process.env.API_URL;
-  
-  const roles = [
-    { 
-      name: 'admin',
-      email: process.env.TEST_ADMIN_EMAIL!,
-      password: process.env.TEST_ADMIN_PASSWORD!
-    },
-    { 
-      name: 'teacher',
-      email: process.env.TEST_TEACHER_EMAIL!,
-      password: process.env.TEST_TEACHER_PASSWORD!
-    },
-    { 
-      name: 'student',
-      email: process.env.TEST_STUDENT_EMAIL!,
-      password: process.env.TEST_STUDENT_PASSWORD!
-    },
-  ];
-  
-  for (const role of roles) {
-    try {
-      const context = await browser.newContext({
-        ignoreHTTPSErrors: true,
-        baseURL
-      });
-      
-      const page = await context.newPage();
-      
-      // Get CSRF token
-      const csrfResponse = await page.request.get(`${apiURL}/api/csrf/token`);
-      const { csrfToken } = await csrfResponse.json();
-      
-      // Login via API
-      const loginResponse = await page.request.post(`${apiURL}/api/auth/login`, {
-        data: {
-          email: role.email,
-          password: role.password
-        },
-        headers: {
-          'Content-Type': 'application/json',
-          'x-csrf-token': csrfToken
-        }
-      });
-      
-      if (loginResponse.ok()) {
-        // Save storage state
-        const storageStatePath = path.join(
-          process.env.PLAYWRIGHT_ARTIFACTS_PATH || 'test-results',
-          `auth-${role.name}.json`
-        );
-        
-        await context.storageState({ path: storageStatePath });
-        console.log(`   ✅ Saved auth state for ${role.name}`);
-      } else {
-        console.log(`   ⚠️  Failed to setup auth for ${role.name}`);
-      }
-      
-      await context.close();
-    } catch (error) {
-      console.log(`   ⚠️  Error setting up auth for ${role.name}:`, error);
-    }
-  }
-  
-  await browser.close();
+  console.log('   ⏭️  Skipping pre-auth setup, tests will authenticate as needed');
 }
 
 export default globalSetup;

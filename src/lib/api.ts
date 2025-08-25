@@ -492,7 +492,7 @@ class ApiClient {
   // PDF APIs
   async uploadPDF(file: File, classId: string) {
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('pdf', file)
     formData.append('classId', classId)
 
     // Debug logging
@@ -540,6 +540,45 @@ class ApiClient {
       return this.request(`/pdf/${pdfId}/page/${pageNumber}`)
     }
     return this.request(`/pdf/${pdfId}/content`)
+  }
+
+  async getPDFInfo(pdfId: string) {
+    return this.request(`/pdf/${pdfId}`)
+  }
+
+  async getPDFPageContent(pdfId: string, pageNumber: number) {
+    return this.request(`/pdf/${pdfId}/page/${pageNumber}`)
+  }
+
+  async trackPDFPageView(pdfId: string, pageNumber: number) {
+    return this.request(`/pdf/${pdfId}/track`, {
+      method: 'POST',
+      body: JSON.stringify({ pageNumber }),
+    })
+  }
+
+  async getPDFTracking(pdfId: string) {
+    return this.request(`/pdf/${pdfId}/tracking`)
+  }
+
+  async searchPDF(pdfId: string, query: string) {
+    return this.request(`/pdf/${pdfId}/search?query=${encodeURIComponent(query)}`)
+  }
+
+  // AI Chat with PDF context
+  async chatWithAI(data: {
+    message: string
+    context?: {
+      pdfId?: string
+      pageNumber?: number
+      pageContent?: string
+      chatHistory?: any[]
+    }
+  }) {
+    return this.request('/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
   }
 
   // Activity APIs

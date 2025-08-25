@@ -9,8 +9,8 @@ import { Send, FileText, User, Bot, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import dynamic from 'next/dynamic';
 
-// PDF 뷰어 동적 임포트
-const PDFViewer = dynamic(() => import('@/components/PDFViewer'), { 
+// Enhanced PDF 뷰어 동적 임포트
+const EnhancedPDFViewer = dynamic(() => import('@/components/PDFViewer/EnhancedPDFViewer').then(mod => ({ default: mod.EnhancedPDFViewer })), { 
   ssr: false,
   loading: () => <div className="flex justify-center items-center h-full"><Loader2 className="animate-spin" /></div>
 });
@@ -183,7 +183,18 @@ export default function StudentClassroom() {
     }
 
     if (document.type === 'application/pdf' && document.fileUrl) {
-      return <PDFViewer fileUrl={document.fileUrl} onPageChange={setCurrentPage} />;
+      return (
+        <EnhancedPDFViewer
+          pdfId={document.id}
+          classId={classInfo?.id}
+          isTeacher={false}
+          onPageChange={setCurrentPage}
+          onTextExtract={(text, pageNumber) => {
+            // Store extracted text for AI context
+            console.log(`Page ${pageNumber} text extracted:`, text.length, 'characters');
+          }}
+        />
+      );
     }
 
     // 텍스트 문서 렌더링
@@ -196,6 +207,41 @@ export default function StudentClassroom() {
     );
   };
 
+  // For PDF documents, use the enhanced viewer with integrated AI chat
+  if (document?.type === 'application/pdf' && document.fileUrl) {
+    return (
+      <div className="h-screen bg-gray-50">
+        {/* Header with class info */}
+        <div className="bg-white border-b p-4">
+          <h2 className="font-semibold flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            {document?.name || '학습 자료'}
+          </h2>
+          {classInfo && (
+            <p className="text-sm text-gray-600 mt-1">
+              {classInfo.name} | {classInfo.teacher} 선생님
+            </p>
+          )}
+        </div>
+        
+        {/* Enhanced PDF viewer with integrated AI chat */}
+        <div className="flex-1 p-4">
+          <EnhancedPDFViewer
+            pdfId={document.id}
+            classId={classInfo?.id}
+            isTeacher={false}
+            onPageChange={setCurrentPage}
+            onTextExtract={(text, pageNumber) => {
+              // Store extracted text for AI context
+              console.log(`Page ${pageNumber} text extracted:`, text.length, 'characters');
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // For text documents, keep the existing layout with separate chat
   return (
     <div className="flex h-screen bg-gray-50">
       {/* 좌측: 문서 뷰어 */}
@@ -218,7 +264,7 @@ export default function StudentClassroom() {
         </div>
       </div>
 
-      {/* 우측: AI 챗봇 */}
+      {/* 우측: AI 챗봇 (텍스트 문서용) */}
       <div className="w-[480px] flex flex-col bg-white">
         <div className="p-4 border-b bg-primary text-white">
           <h2 className="font-semibold flex items-center gap-2">

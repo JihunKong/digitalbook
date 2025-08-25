@@ -32,6 +32,17 @@ model User {
   notifications  Notification[]
   activities     UserActivity[]
   
+  // PDF and Learning Activity relations
+  uploadedPDFs      PDFTextbook[]     @relation("UploadedPDFs")
+  pageViews         PageView[]        @relation("StudentPageViews")
+  pdfPageViews      PdfPageView[]     @relation("PdfPageViews")
+  createdActivities Activity[]        @relation("CreatedActivities")
+  activityResponses ActivityResponse[] @relation("StudentResponses")
+  groupMemberships  GroupMember[]     @relation("GroupMemberships")
+  
+  // 채팅 관계
+  chatSessions      ChatSession[]     @relation("UserChatSessions")
+  
   @@index([email])
   @@index([role])
 }
@@ -119,6 +130,9 @@ model Class {
   textbooks     ClassTextbook[]
   assignments   Assignment[]
   announcements Announcement[]
+  pdfTextbooks  PDFTextbook[]
+  activities    Activity[]
+  studentGroups StudentGroup[]
   
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -193,11 +207,22 @@ model TextbookPage {
   title         String?
   content       Json       // 페이지 내용 (텍스트, 이미지, 비디오 등)
   
+  // 혼합 콘텐츠 지원
+  contentType   ContentType @default(TEXT)
+  textContent   String?    @db.Text  // 순수 텍스트 콘텐츠
+  fileId        String?    // File 참조 (PDF, 이미지 등)
+  file          File?      @relation("PageFiles", fields: [fileId], references: [id])
+  
+  // RAG 및 챗봇 관계
+  embeddings    PageEmbedding[]
+  chatSessions  ChatSession[]
+  
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   
   @@unique([textbookId, pageNumber])
   @@index([textbookId])
+  @@index([contentType])
 }
 
 // ==========================================
@@ -405,6 +430,9 @@ model File {
   uploadedBy    String
   extractedText String?    @db.Text
   
+  // 페이지 관계
+  pageFiles     TextbookPage[] @relation("PageFiles")
+  
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   
@@ -412,12 +440,183 @@ model File {
 }
 
 // ==========================================
+// PDF Textbook Management
+// ==========================================
+model PDFTextbook {
+  id            String     @id @default(uuid())
+  classId       String
+  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  filename      String
+  fileUrl       String
+  fileSize      Int
+  totalPages    Int?
+  parsedContent Json?      // Stores extracted text by page
+  status        String     @default("processing") // processing, completed, failed
+  
+  uploadedBy    String
+  uploadedByUser User       @relation("UploadedPDFs", fields: [uploadedBy], references: [id])
+  
+  pageViews     PageView[]
+  pdfPageViews  PdfPageView[] @relation("PdfViews")
+  activities    Activity[]
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@index([classId])
+  @@index([uploadedBy])
+  @@index([status])
+}
+
+// Page viewing tracking
+model PageView {
+  id            String     @id @default(uuid())
+  studentId     String
+  student       User       @relation("StudentPageViews", fields: [studentId], references: [id])
+  textbookId    String
+  textbook      PDFTextbook @relation(fields: [textbookId], references: [id], onDelete: Cascade)
+  pageNumber    Int
+  duration      Int?       // Duration in seconds
+  
+  viewedAt      DateTime   @default(now())
+  
+  @@index([studentId])
+  @@index([textbookId])
+  @@index([viewedAt])
+}
+
+// Learning Activities
+model Activity {
+  id            String     @id @default(uuid())
+  classId       String
+  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  textbookId    String?
+  textbook      PDFTextbook? @relation(fields: [textbookId], references: [id])
+  
+  title         String
+  description   String?
+  type          String     @default("fill_in_blank") // fill_in_blank, multiple_choice, essay
+  questions     Json       // Array of questions with blanks
+  
+  createdBy     String
+  createdByUser User       @relation("CreatedActivities", fields: [createdBy], references: [id])
+  modifiable    Boolean    @default(true)
+  
+  responses     ActivityResponse[]
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@index([classId])
+  @@index([textbookId])
+  @@index([createdBy])
+}
+
+// Student responses to activities
+model ActivityResponse {
+  id            String     @id @default(uuid())
+  activityId    String
+  activity      Activity   @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User       @relation("StudentResponses", fields: [studentId], references: [id])
+  
+  answers       Json       // Student's filled answers
+  score         Float?     // Optional score if graded
+  feedback      String?    // Teacher feedback
+  
+  submittedAt   DateTime   @default(now())
+  gradedAt      DateTime?
+  
+  @@unique([activityId, studentId])
+  @@index([activityId])
+  @@index([studentId])
+  @@index([submittedAt])
+}
+
+// Collaboration Groups
+model StudentGroup {
+  id            String     @id @default(uuid())
+  classId       String
+  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  
+  members       GroupMember[]
+  sessions      CollaborationSession[]
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@index([classId])
+}
+
+// Group membership with roles
+model GroupMember {
+  id            String     @id @default(uuid())
+  groupId       String
+  group         StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       User       @relation("GroupMemberships", fields: [studentId], references: [id])
+  role          String     @default("member") // leader, note_taker, presenter, member
+  
+  joinedAt      DateTime   @default(now())
+  
+  @@unique([groupId, studentId])
+  @@index([groupId])
+  @@index([studentId])
+}
+
+// Collaboration sessions for group work
+model CollaborationSession {
+  id            String     @id @default(uuid())
+  groupId       String
+  group         StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  activityId    String?
+  
+  status        String     @default("active") // active, completed, paused
+  sharedNotes   Json?      // Collaborative notes
+  schedule      Json?      // Meeting schedule
+  
+  startedAt     DateTime   @default(now())
+  endedAt       DateTime?
+  
+  @@index([groupId])
+  @@index([status])
+}
+
+// ==========================================
+// PDF 실시간 추적 (NEW)
+// ==========================================
+model PdfPageView {
+  id            String     @id @default(uuid())
+  userId        String?    // For logged-in users
+  user          User?      @relation("PdfPageViews", fields: [userId], references: [id])
+  guestId       String?    // For guest users
+  guest         GuestAccess? @relation("GuestPdfViews", fields: [guestId], references: [id])
+  
+  pdfId         String     // Reference to PDFTextbook
+  pdf           PDFTextbook @relation("PdfViews", fields: [pdfId], references: [id], onDelete: Cascade)
+  
+  pageNumber    Int
+  timeSpent     Int        // Time in milliseconds
+  viewedAt      DateTime   @default(now())
+  
+  @@index([userId])
+  @@index([guestId])
+  @@index([pdfId])
+  @@index([pageNumber])
+  @@index([viewedAt])
+}
+
+// ==========================================
 // 게스트 액세스 (기존 호환성)
 // ==========================================
 model GuestAccess {
   id            String     @id @default(uuid())
+  sessionId     String?    @unique // Added for socket authentication
   accessCode    String     @unique
   textbookId    String?
+  studentName   String?    // Added for socket authentication
   
   expiresAt     DateTime
   maxQuestions  Int        @default(50)
@@ -425,9 +624,97 @@ model GuestAccess {
   
   metadata      Json?      // 추가 정보
   
+  // PDF tracking relations
+  pdfViews      PdfPageView[] @relation("GuestPdfViews")
+  
+  // 채팅 관계
+  chatSessions  ChatSession[] @relation("GuestChatSessions")
+  
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   
   @@index([accessCode])
+  @@index([sessionId])
   @@index([expiresAt])
+}
+
+// ==========================================
+// 콘텐츠 타입 및 RAG/챗봇 모델
+// ==========================================
+
+enum ContentType {
+  TEXT     // 텍스트만
+  FILE     // 파일만 (PDF, 이미지 등)
+  MIXED    // 텍스트 + 파일 혼합
+}
+
+// 페이지별 임베딩 청크 저장
+model PageEmbedding {
+  id            String     @id @default(uuid())
+  pageId        String
+  page          TextbookPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  
+  chunk         String     @db.Text     // 임베딩할 텍스트 청크
+  embedding     Float[]    // pgvector extension 사용 (1024차원)
+  chunkIndex    Int        // 페이지 내 청크 순서
+  metadata      Json?      // 추가 메타데이터 (페이지 번호, 섹션 등)
+  
+  createdAt     DateTime   @default(now())
+  
+  @@unique([pageId, chunkIndex])
+  @@index([pageId])
+  // Vector similarity search index (pgvector)
+  @@map("page_embeddings")
+}
+
+// 챗봇 세션 관리
+model ChatSession {
+  id            String     @id @default(uuid())
+  userId        String?    // 로그인 사용자 (null이면 게스트)
+  user          User?      @relation("UserChatSessions", fields: [userId], references: [id])
+  guestId       String?    // 게스트 사용자
+  guest         GuestAccess? @relation("GuestChatSessions", fields: [guestId], references: [id])
+  
+  pageId        String
+  page          TextbookPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  
+  sessionName   String?    // 세션 이름 (선택적)
+  isActive      Boolean    @default(true)
+  
+  messages      ChatMessage[]
+  
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  
+  @@index([userId])
+  @@index([guestId])
+  @@index([pageId])
+  @@index([isActive])
+}
+
+// 챗봇 메시지
+model ChatMessage {
+  id            String     @id @default(uuid())
+  sessionId     String
+  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  role          MessageRole // user, assistant, system
+  content       String     @db.Text
+  metadata      Json?      // 추가 정보 (사용된 컨텍스트, 참조 소스 등)
+  
+  // RAG 관련 정보
+  retrievedChunks String[] @default([]) // 참조된 청크 ID들
+  confidence    Float?     // 응답 신뢰도 (0-1)
+  
+  createdAt     DateTime   @default(now())
+  
+  @@index([sessionId])
+  @@index([role])
+  @@index([createdAt])
+}
+
+enum MessageRole {
+  USER        // 사용자 메시지
+  ASSISTANT   // AI 어시스턴트 응답
+  SYSTEM      // 시스템 메시지
 }

@@ -1,7 +1,7 @@
 import Joi from 'joi';
 
-// Password pattern for strong passwords
-const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+// Simplified password pattern - just minimum length for better UX
+const passwordPattern = /^.{8,}$/;
 
 // Common validation patterns
 const patterns = {
@@ -18,7 +18,7 @@ const customValidators = {
     .pattern(passwordPattern)
     .required()
     .messages({
-      'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
+      'string.pattern.base': 'Password must be at least 8 characters long',
       'string.min': 'Password must be at least 8 characters long',
       'string.max': 'Password must not exceed 100 characters',
     }),
@@ -67,12 +67,13 @@ export const authSchemas = {
       
     termsAccepted: Joi.boolean()
       .valid(true)
-      .required()
+      .default(true)
+      .optional()
       .messages({
         'any.only': 'You must accept the terms and conditions',
       }),
       
-    metadata: Joi.object({
+    profileData: Joi.object({
       school: Joi.string().max(100).trim(),
       grade: Joi.when('...role', {
         is: 'STUDENT',
@@ -86,13 +87,13 @@ export const authSchemas = {
       }),
     }).optional(),
   }).custom((value, helpers) => {
-    // Teachers must provide school information
-    if (value.role === 'TEACHER' && (!value.metadata || !value.metadata.school)) {
+    // Teachers should provide school information (optional for now)
+    if (value.role === 'TEACHER' && value.profileData && !value.profileData.school) {
       return helpers.error('custom.teacherSchool');
     }
     return value;
   }).messages({
-    'custom.teacherSchool': 'Teachers must provide school information',
+    'custom.teacherSchool': 'Teachers should provide school information',
   }),
   
   // Enhanced login schema

@@ -1,7 +1,0 @@
-
-> ai-textbook-backend@1.0.0 dev
-> tsx watch src/index.ts
-
-prisma:info Starting a postgresql pool with 21 connections.
-[31merror[39m: Database connection failed: User `postgres` was denied access on the database `digitalbook.public` {"clientVersion":"5.22.0","errorCode":"P1010","name":"PrismaClientInitializationError","stack":"PrismaClientInitializationError: User `postgres` was denied access on the database `digitalbook.public`\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)\n    at async initializeDatabase (/Users/jihunkong/DigitalBook/backend/src/config/database.ts:14:5)\n    at async startServer (/Users/jihunkong/DigitalBook/backend/src/index.ts:71:5)","timestamp":"2025-06-30T03:32:35.468Z"}
-[31merror[39m: Failed to start server: User `postgres` was denied access on the database `digitalbook.public` {"clientVersion":"5.22.0","errorCode":"P1010","name":"PrismaClientInitializationError","stack":"PrismaClientInitializationError: User `postgres` was denied access on the database `digitalbook.public`\n    at t (/Users/jihunkong/DigitalBook/backend/node_modules/@prisma/client/runtime/library.js:112:2488)\n    at async initializeDatabase (/Users/jihunkong/DigitalBook/backend/src/config/database.ts:14:5)\n    at async startServer (/Users/jihunkong/DigitalBook/backend/src/index.ts:71:5)","timestamp":"2025-06-30T03:32:35.469Z"}

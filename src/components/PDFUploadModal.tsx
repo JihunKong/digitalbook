@@ -28,12 +28,23 @@ export function PDFUploadModal({ isOpen, onClose, onSuccess, classes = [] }: PDF
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file && file.type === 'application/pdf') {
-      setSelectedFile(file)
-      setErrorMessage('')
-    } else {
+    if (!file) return
+
+    // Check file type
+    if (file.type !== 'application/pdf') {
       setErrorMessage('PDF 파일만 업로드 가능합니다.')
+      return
     }
+
+    // Check file size (100MB limit)
+    const maxSizeInBytes = 100 * 1024 * 1024 // 100MB
+    if (file.size > maxSizeInBytes) {
+      setErrorMessage(`파일 크기가 너무 큽니다. 최대 100MB까지 업로드 가능합니다. (현재: ${(file.size / 1024 / 1024).toFixed(1)}MB)`)
+      return
+    }
+
+    setSelectedFile(file)
+    setErrorMessage('')
   }
 
   const handleUpload = async () => {

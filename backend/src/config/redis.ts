@@ -8,12 +8,17 @@ export { redis };
 
 export async function initializeRedis() {
   if (!redis) {
-    redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+    const redisUrl = process.env.REDIS_URL || 'redis://redis:6379';
+    logger.info(`Connecting to Redis at: ${redisUrl}`);
+    
+    redis = new Redis(redisUrl, {
       retryStrategy: (times) => {
+        logger.warn(`Redis retry attempt ${times}`);
         const delay = Math.min(times * 50, 2000);
         return delay;
       },
       maxRetriesPerRequest: 3,
+      lazyConnect: true, // Connect only when needed
     });
     
     redis.on('connect', () => {

@@ -40,3 +40,6 @@ export function startCronJobs() {
   
   logger.info('Cron jobs initialized');
 }
+
+// Alias for backward compatibility  
+export const initializeCronJobs = startCronJobs;

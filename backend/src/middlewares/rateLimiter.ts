@@ -18,7 +18,7 @@ const rateLimiterCache: Map<string, RateLimitRequestHandler> = new Map();
 // Create rate limiter at initialization time
 function createRateLimiter(name: string, config: RateLimiterConfig): RateLimitRequestHandler {
   // Create the actual rate limiter immediately
-  console.info(`Creating memory-based rate limiter for ${name}`);
+  console.info(`Creating enhanced memory-based rate limiter for ${name}`);
   const limiter = rateLimit({
       windowMs: config.windowMs,
       max: config.max,
@@ -29,7 +29,14 @@ function createRateLimiter(name: string, config: RateLimiterConfig): RateLimitRe
       keyGenerator: config.keyGenerator || ((req: Request) => {
         // Use user ID if authenticated, otherwise use IP
         const userId = (req as any).user?.id;
-        return userId ? `user:${userId}` : `ip:${req.ip}`;
+        if (userId) return `user:${userId}`;
+        
+        // Enhanced IP detection for production behind reverse proxy
+        const forwardedIps = req.get('X-Forwarded-For');
+        const realIp = req.get('X-Real-IP');
+        const clientIp = forwardedIps?.split(',')[0]?.trim() || realIp || req.ip || req.connection.remoteAddress;
+        
+        return `ip:${clientIp}`;
       }),
       handler: (req: Request, res: Response) => {
         logSecurity('Rate limit exceeded', {
@@ -63,17 +70,37 @@ export const strictRateLimiter = createRateLimiter('strict', {
   max: parseInt(process.env.RATE_LIMIT_STRICT || '20'),
 });
 
-// Auth endpoints rate limiter
-export const authRateLimiter = createRateLimiter('auth', {
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_AUTH || '5'),
-  message: 'Too many authentication attempts, please try again later.',
+// Separate rate limiters for different auth operations
+export const signupRateLimiter = createRateLimiter('signup', {
+  windowMs: 60 * 60 * 1000, // 1 hour window for signups
+  max: parseInt(process.env.RATE_LIMIT_SIGNUP || '15'),
+  message: 'Too many signup attempts. Please try again in an hour.',
   skipSuccessfulRequests: true,
   keyGenerator: (req: Request) => {
-    // Rate limit by IP for auth endpoints
-    return `ip:${req.ip}`;
+    // Enhanced IP detection for signup endpoints
+    const forwardedIps = req.get('X-Forwarded-For');
+    const realIp = req.get('X-Real-IP');
+    const clientIp = forwardedIps?.split(',')[0]?.trim() || realIp || req.ip || req.connection.remoteAddress;
+    return `signup:${clientIp}`;
   },
 });
+
+export const loginRateLimiter = createRateLimiter('login', {
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_LOGIN || '25'),
+  message: 'Too many login attempts. Please wait 15 minutes and try again.',
+  skipSuccessfulRequests: false, // Count failed login attempts
+  keyGenerator: (req: Request) => {
+    // Enhanced IP detection for login endpoints
+    const forwardedIps = req.get('X-Forwarded-For');
+    const realIp = req.get('X-Real-IP');
+    const clientIp = forwardedIps?.split(',')[0]?.trim() || realIp || req.ip || req.connection.remoteAddress;
+    return `login:${clientIp}`;
+  },
+});
+
+// Legacy auth rate limiter (maintained for backward compatibility)
+export const authRateLimiter = loginRateLimiter;
 
 // Password reset rate limiter
 export const passwordResetRateLimiter = createRateLimiter('password_reset', {
@@ -128,7 +155,7 @@ export function createDynamicRateLimiter(name: string, getTierLimits: (req: Requ
     let limiter = limiterCache.get(limiterKey);
     if (!limiter) {
       // Create limiter for this tier at initialization time
-      console.info(`Creating memory-based dynamic rate limiter for ${limiterKey}`);
+      console.info(`Creating enhanced memory-based dynamic rate limiter for ${limiterKey}`);
       limiter = rateLimit({
         windowMs: config.windowMs,
         max: config.max,
@@ -138,7 +165,14 @@ export function createDynamicRateLimiter(name: string, getTierLimits: (req: Requ
         skipSuccessfulRequests: config.skipSuccessfulRequests || false,
         keyGenerator: config.keyGenerator || ((req: Request) => {
           const userId = (req as any).user?.id;
-          return userId ? `user:${userId}` : `ip:${req.ip}`;
+          if (userId) return `user:${userId}`;
+          
+          // Enhanced IP detection for production behind reverse proxy
+          const forwardedIps = req.get('X-Forwarded-For');
+          const realIp = req.get('X-Real-IP');
+          const clientIp = forwardedIps?.split(',')[0]?.trim() || realIp || req.ip || req.connection.remoteAddress;
+          
+          return `ip:${clientIp}`;
         }),
         handler: (req: Request, res: Response) => {
           logSecurity('Rate limit exceeded', {
@@ -175,10 +209,11 @@ export const tierBasedRateLimiter = createDynamicRateLimiter('tier', (req: Reque
   return limits[tier as keyof typeof limits] || limits.free;
 });
 
-// Rate limiter for specific paths
+// Rate limiter for specific paths (using original request URL)
 export const pathSpecificRateLimiters = {
-  '/api/auth/login': authRateLimiter,
-  '/api/auth/signup': authRateLimiter,
+  '/api/auth/login': loginRateLimiter,
+  '/api/auth/signup': signupRateLimiter,
+  '/api/auth/register': signupRateLimiter,
   '/api/auth/reset-password': passwordResetRateLimiter,
   '/api/upload': uploadRateLimiter,
   '/api/ai': aiServiceRateLimiter,
@@ -188,8 +223,12 @@ export const pathSpecificRateLimiters = {
 
 // Middleware to apply path-specific rate limiters
 export function applyPathRateLimiter(req: Request, res: Response, next: Function) {
-  const limiter = pathSpecificRateLimiters[req.path as keyof typeof pathSpecificRateLimiters];
+  // Use originalUrl to get the full path including mounted routes
+  const fullPath = req.originalUrl?.split('?')[0]; // Remove query params
+  const limiter = pathSpecificRateLimiters[fullPath as keyof typeof pathSpecificRateLimiters];
+  
   if (limiter) {
+    console.info(`Applying specific rate limiter for path: ${fullPath}`);
     return limiter(req, res, next);
   }
   // Apply general rate limiter if no specific one is found

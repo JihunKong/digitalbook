@@ -8,6 +8,9 @@ interface DashboardStats {
   totalStudents: number;
   totalClasses: number;
   weeklyProgress: number;
+  aiCredits?: number;
+  aiUsageCount?: number;
+  activeUsersPercentage?: number;
   recentActivities: Activity[];
   upcomingAssignments: Assignment[];
 }
@@ -107,7 +110,38 @@ class DashboardController {
       // Get upcoming assignments (placeholder for now)
       const upcomingAssignments: Assignment[] = [];
       
-      // Calculate weekly progress (placeholder)
+      // Calculate AI-related stats
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      
+      // Count AI usage (textbooks created this week as proxy)
+      const aiUsageCount = await prisma.textbook.count({
+        where: { 
+          authorId: teacherProfile.id,
+          createdAt: {
+            gte: oneWeekAgo
+          }
+        }
+      });
+      
+      // Calculate active users percentage
+      let activeUsersPercentage = 0;
+      if (enrollmentCount > 0) {
+        // Count students who have been active in the last week
+        const activeStudents = await prisma.classEnrollment.count({
+          where: {
+            class: {
+              teacherId: teacherProfile.id
+            },
+            updatedAt: {
+              gte: oneWeekAgo
+            }
+          }
+        });
+        activeUsersPercentage = Math.round((activeStudents / enrollmentCount) * 100);
+      }
+      
+      // Calculate weekly progress (based on actual activity)
       const weeklyProgress = Math.min(100, (totalTextbooks * 20) + (totalClasses * 15) + (enrollmentCount * 2));
       
       const dashboardStats: DashboardStats = {
@@ -115,6 +149,9 @@ class DashboardController {
         totalStudents: enrollmentCount,
         totalClasses,
         weeklyProgress,
+        aiCredits: 1000, // Default credit amount - could be from user profile in future
+        aiUsageCount,
+        activeUsersPercentage,
         recentActivities,
         upcomingAssignments
       };
