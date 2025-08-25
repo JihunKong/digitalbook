@@ -28,12 +28,13 @@ function LoginContent() {
     setError('')
 
     try {
-      // Call our API endpoint
+      // Call our API endpoint (which forwards to backend)
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ email, password }),
       })
       

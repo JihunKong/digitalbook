@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { TeacherDemoTour } from '@/components/demo/TeacherDemoTour'
 import { DemoModeToggle } from '@/components/DemoModeBanner'
+import { PDFUploadModal } from '@/components/PDFUploadModal'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +16,22 @@ import {
   MessageSquare, FileText, Plus, Eye, Upload, Zap, Settings,
   Library, Bookmark
 } from 'lucide-react'
+import { apiClient } from '@/lib/api'
+
+// Icon mapping function
+const getIconComponent = (iconName: string) => {
+  const iconMap: { [key: string]: any } = {
+    BookOpen,
+    Award,
+    Sparkles,
+    GraduationCap,
+    Users,
+    Activity,
+    MessageSquare,
+    FileText
+  }
+  return iconMap[iconName] || BookOpen
+}
 
 interface DashboardStats {
   totalTextbooks: number
@@ -44,61 +61,77 @@ interface Assignment {
 
 export default function TeacherDashboard() {
   const router = useRouter()
+  const [isPDFModalOpen, setIsPDFModalOpen] = useState(false)
+  const [teacherClasses, setTeacherClasses] = useState<Array<{ id: string; name: string }>>([])
   const [stats, setStats] = useState<DashboardStats>({
-    totalTextbooks: 3,
-    totalStudents: 75,
-    totalClasses: 3,
-    weeklyProgress: 85,
-    recentActivities: [
-      {
-        id: '1',
-        type: 'textbook',
-        title: '3학년 1학기 국어 교과서 생성됨',
-        timestamp: '10분 전',
-        icon: BookOpen
-      },
-      {
-        id: '2',
-        type: 'student',
-        title: '김민수 학생이 퀴즈 완료 (95점)',
-        timestamp: '30분 전',
-        icon: Award
-      },
-      {
-        id: '3',
-        type: 'ai',
-        title: 'AI가 새로운 학습 인사이트 생성',
-        timestamp: '1시간 전',
-        icon: Sparkles
-      }
-    ],
-    upcomingAssignments: [
-      {
-        id: '1',
-        title: '한글의 아름다움 - 받아쓰기',
-        className: '3학년 1반',
-        dueDate: '2024-01-20',
-        submissions: 15,
-        total: 25
-      },
-      {
-        id: '2',
-        title: '수학 문제 풀이',
-        className: '3학년 2반',
-        dueDate: '2024-01-22',
-        submissions: 20,
-        total: 23
-      }
-    ]
+    totalTextbooks: 0,
+    totalStudents: 0,
+    totalClasses: 0,
+    weeklyProgress: 0,
+    recentActivities: [],
+    upcomingAssignments: []
   })
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  // Check if demo mode
+  // Check if demo mode and fetch teacher classes
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.get('demo') === 'true') {
       localStorage.setItem('isDemo', 'true')
     }
+    
+    // Fetch teacher's data
+    fetchTeacherClasses()
+    fetchDashboardData()
   }, [])
+
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true)
+      const response = await apiClient.getTeacherDashboardData()
+      if (response.data) {
+        setStats(response.data)
+      } else if (response.error) {
+        setError(response.error.message)
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error)
+      setError('대시보드 데이터를 불러오는데 실패했습니다.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchTeacherClasses = async () => {
+    try {
+      const response = await apiClient.getTeacherClasses()
+      if (response.data && Array.isArray(response.data)) {
+        setTeacherClasses(response.data.map((cls: any) => ({
+          id: cls.id,
+          name: cls.name
+        })))
+      }
+    } catch (error) {
+      console.error('Failed to fetch classes:', error)
+    }
+  }
+
+  const handlePDFUploadSuccess = (pdfId: string) => {
+    // Update recent activities
+    const newActivity = {
+      id: `pdf-${Date.now()}`,
+      type: 'textbook' as const,
+      title: 'PDF 교과서가 업로드되고 활동이 생성되었습니다',
+      timestamp: '방금 전',
+      icon: BookOpen
+    }
+    
+    setStats(prev => ({
+      ...prev,
+      recentActivities: [newActivity, ...prev.recentActivities.slice(0, 2)]
+    }))
+  }
 
   const quickActions = [
     {
@@ -107,7 +140,17 @@ export default function TeacherDashboard() {
       icon: Plus,
       color: 'bg-blue-500',
       href: '/teacher/textbooks/create',
-      id: 'create-textbook-btn'
+      id: 'create-textbook-btn',
+      isLink: true
+    },
+    {
+      title: 'PDF 업로드',
+      description: 'PDF를 교과서로 변환',
+      icon: Upload,
+      color: 'bg-indigo-500',
+      onClick: () => setIsPDFModalOpen(true),
+      id: 'upload-pdf-btn',
+      isLink: false
     },
     {
       title: '학급 관리',
@@ -115,7 +158,8 @@ export default function TeacherDashboard() {
       icon: Users,
       color: 'bg-green-500',
       href: '/teacher/classes',
-      id: 'class-management'
+      id: 'class-management',
+      isLink: true
     },
     {
       title: '학습 분석',
@@ -123,15 +167,8 @@ export default function TeacherDashboard() {
       icon: BarChart,
       color: 'bg-purple-500',
       href: '/teacher/analytics',
-      id: 'analytics-dashboard'
-    },
-    {
-      title: 'AI 도구',
-      description: '콘텐츠 생성 도구',
-      icon: Sparkles,
-      color: 'bg-orange-500',
-      href: '/teacher/ai-tools',
-      id: 'ai-features'
+      id: 'analytics-dashboard',
+      isLink: true
     }
   ]
 
@@ -242,22 +279,31 @@ export default function TeacherDashboard() {
           <div className="grid gap-4 md:grid-cols-4">
             {quickActions.map((action) => {
               const Icon = action.icon
-              return (
-                <Link key={action.href} href={action.href}>
-                  <Card 
-                    id={action.id}
-                    className="hover:shadow-lg transition-all cursor-pointer hover:scale-105"
-                  >
-                    <CardContent className="p-6">
-                      <div className={`w-12 h-12 ${action.color} rounded-lg flex items-center justify-center mb-4`}>
-                        <Icon className="w-6 h-6 text-white" />
-                      </div>
-                      <h3 className="font-semibold mb-1">{action.title}</h3>
-                      <p className="text-sm text-gray-600">{action.description}</p>
-                    </CardContent>
-                  </Card>
-                </Link>
+              const CardComponent = (
+                <Card 
+                  id={action.id}
+                  className="hover:shadow-lg transition-all cursor-pointer hover:scale-105"
+                  onClick={action.onClick}
+                >
+                  <CardContent className="p-6">
+                    <div className={`w-12 h-12 ${action.color} rounded-lg flex items-center justify-center mb-4`}>
+                      <Icon className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="font-semibold mb-1">{action.title}</h3>
+                    <p className="text-sm text-gray-600">{action.description}</p>
+                  </CardContent>
+                </Card>
               )
+
+              if (action.isLink && action.href) {
+                return (
+                  <Link key={action.id} href={action.href}>
+                    {CardComponent}
+                  </Link>
+                )
+              }
+              
+              return <div key={action.id}>{CardComponent}</div>
             })}
           </div>
         </div>
@@ -276,23 +322,37 @@ export default function TeacherDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {stats.recentActivities.map((activity) => {
-                  const Icon = activity.icon
-                  return (
-                    <div key={activity.id} className="flex items-start gap-3">
-                      <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Icon className="w-4 h-4 text-gray-600" />
+                {isLoading ? (
+                  <div className="text-center py-4 text-gray-500">
+                    로딩 중...
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-4 text-red-500">
+                    {error}
+                  </div>
+                ) : stats.recentActivities.length === 0 ? (
+                  <div className="text-center py-4 text-gray-500">
+                    최근 활동이 없습니다.
+                  </div>
+                ) : (
+                  stats.recentActivities.map((activity) => {
+                    const Icon = getIconComponent(activity.icon || 'BookOpen')
+                    return (
+                      <div key={activity.id} className="flex items-start gap-3">
+                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Icon className="w-4 h-4 text-gray-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{activity.title}</p>
+                          <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                            <Clock className="w-3 h-3" />
+                            {activity.timestamp}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{activity.title}</p>
-                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                          <Clock className="w-3 h-3" />
-                          {activity.timestamp}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })
+                )}
               </div>
             </CardContent>
           </Card>
@@ -357,32 +417,33 @@ export default function TeacherDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h4 className="font-medium text-blue-900 mb-1">우수 학생</h4>
-                <p className="text-sm text-blue-700">
-                  김민수, 이서연 학생이 이번 주 가장 높은 학습 성취도를 보였습니다.
-                </p>
+            {isLoading ? (
+              <div className="text-center py-8 text-gray-500">
+                AI 분석 데이터를 불러오는 중...
               </div>
-              <div className="bg-yellow-50 rounded-lg p-4">
-                <h4 className="font-medium text-yellow-900 mb-1">주의 필요</h4>
-                <p className="text-sm text-yellow-700">
-                  3명의 학생이 진도를 따라가는데 어려움을 겪고 있습니다.
-                </p>
+            ) : error ? (
+              <div className="text-center py-8 text-red-500">
+                AI 인사이트를 불러올 수 없습니다.
               </div>
-              <div className="bg-green-50 rounded-lg p-4">
-                <h4 className="font-medium text-green-900 mb-1">추천 활동</h4>
-                <p className="text-sm text-green-700">
-                  다음 주에는 그룹 토론 활동을 추가하면 참여도가 높아질 것으로 예상됩니다.
-                </p>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                충분한 데이터가 쌓이면 AI 인사이트를 제공해드릴게요.
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
       
       {/* Demo Mode Toggle */}
       <DemoModeToggle />
+
+      {/* PDF Upload Modal */}
+      <PDFUploadModal
+        isOpen={isPDFModalOpen}
+        onClose={() => setIsPDFModalOpen(false)}
+        onSuccess={handlePDFUploadSuccess}
+        classes={teacherClasses}
+      />
     </div>
   )
 }

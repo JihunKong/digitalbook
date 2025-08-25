@@ -7,10 +7,10 @@ import classRoutes from './class.routes';
 import chatRoutes from './chat.routes';
 // import analyticsRoutes from './analytics.routes';
 // import imagesRoutes from './images.routes';
-import guestRoutes from './guest.routes';
-// import studentRoutes from './student.routes';
+// import guestRoutes from './guest.routes'; // TODO: Fix guest controller
+import studentRoutes from './student.routes';
 // import multimediaRoutes from './multimedia.routes';
-// import notificationRoutes from './notification.routes';
+import notificationRoutes from './notification.routes';
 // import performanceRoutes from './performance.routes';
 // import backupRoutes from './backup.routes';
 // import i18nRoutes from './i18n.routes';
@@ -19,6 +19,9 @@ import csrfRoutes from './csrf.routes';
 import ttsRoutes from './tts.routes';
 import fileRoutes from './file.routes';
 import demoRoutes from './demo.routes';
+import pdfRoutes from './pdf.routes';
+import activityRoutes from './activity.routes';
+import dashboardRoutes from './dashboard.routes';
 
 const router = Router();
 
@@ -31,10 +34,10 @@ router.use('/classes', classRoutes);
 router.use('/chat', chatRoutes);
 // router.use('/analytics', analyticsRoutes);
 // router.use('/images', imagesRoutes);
-router.use('/guest', guestRoutes);
-// router.use('/students', studentRoutes);
+// router.use('/guest', guestRoutes); // TODO: Fix guest controller
+router.use('/students', studentRoutes);
 // router.use('/multimedia', multimediaRoutes);
-// router.use('/notifications', notificationRoutes);
+router.use('/notifications', notificationRoutes);
 // router.use('/performance', performanceRoutes);
 // router.use('/backup', backupRoutes);
 // router.use('/i18n', i18nRoutes);
@@ -42,5 +45,8 @@ router.use('/health', healthRoutes);
 router.use('/tts', ttsRoutes);
 router.use('/files', fileRoutes);
 router.use('/demo', demoRoutes);
+router.use('/pdf', pdfRoutes);
+router.use('/activities', activityRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 export default router;

@@ -18,3 +18,6 @@ export function validateRequest(schema: Joi.ObjectSchema) {
     next();
   };
 }
+
+// Alias for backward compatibility
+export const validate = validateRequest;

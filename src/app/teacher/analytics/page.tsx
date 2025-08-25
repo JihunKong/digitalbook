@@ -93,215 +93,36 @@ export default function TeacherAnalyticsPage() {
       try {
         setIsLoading(true)
         
-        // Use mock data temporarily
-        const mockData: AnalyticsData = {
-          studentPerformance: {
-            totalStudents: 32,
-            activeStudents: 28,
-            averageScore: 82.5,
-            improvementRate: 15.3
-          },
-          engagement: {
-            dailyActiveUsers: [
-              { date: '2024-03-01', users: 25 },
-              { date: '2024-03-02', users: 28 }
-            ],
-            readingTime: [
-              { week: '1주차', minutes: 45 },
-              { week: '2주차', minutes: 52 }
-            ],
-            pageViews: [
-              { page: '교과서', views: 450 },
-              { page: '과제', views: 320 }
-            ]
-          },
-          progress: {
-            completionRates: [
-              { textbook: '현대문학', rate: 85 },
-              { textbook: '고전문학', rate: 72 }
-            ],
-            assignmentStats: [
-              { subject: '현대문학', completed: 18, total: 20 },
-              { subject: '고전문학', completed: 14, total: 18 }
-            ]
-          },
-          timeAnalysis: {
-            peakHours: [
-              { hour: 9, activity: 15 },
-              { hour: 14, activity: 25 }
-            ],
-            weeklyPatterns: [
-              { day: '월', sessions: 15 },
-              { day: '화', sessions: 18 }
-            ]
-          }
-        }
-        setAnalyticsData(mockData)
-        
-        const mockStudents: StudentAnalytics[] = [
-          {
-            id: '1',
-            name: '김민수',
-            totalScore: 85,
-            completionRate: 90,
-            engagementScore: 88,
-            riskLevel: 'low'
-          },
-          {
-            id: '2',
-            name: '이서연',
-            totalScore: 72,
-            completionRate: 75,
-            engagementScore: 70,
-            riskLevel: 'medium'
-          }
-        ]
-        setStudentAnalytics(mockStudents)
-        
-        // Commented out API calls until backend is working
-        /*
-        const [analyticsRes, performanceRes, engagementRes, progressRes] = await Promise.all([
-          apiClient.getAnalytics(selectedTimeRange, { classId: undefined }),
-          apiClient.getStudentPerformance(),
-          apiClient.getEngagementMetrics(selectedTimeRange),
-          apiClient.getProgressAnalytics(undefined)
-        ])
+        // Try to load real data from API
+        try {
+          const [analyticsRes, performanceRes, engagementRes, progressRes] = await Promise.all([
+            apiClient.getAnalytics(selectedTimeRange, { classId: undefined }),
+            apiClient.getStudentPerformance(),
+            apiClient.getEngagementMetrics(selectedTimeRange),
+            apiClient.getProgressAnalytics(undefined)
+          ])
 
-        const analyticsData = analyticsRes.data as Record<string, any>
-        if (analyticsData && typeof analyticsData === 'object' && Object.keys(analyticsData).length > 0) {
-          setAnalyticsData(analyticsData as AnalyticsData)
-        } else {
-          const combinedData: AnalyticsData = {
-            studentPerformance: performanceRes?.data && typeof performanceRes.data === 'object' && 'totalStudents' in performanceRes.data
-              ? performanceRes.data as AnalyticsData['studentPerformance']
-              : {
-                  totalStudents: 0,
-                  activeStudents: 0,
-                  averageScore: 0,
-                  improvementRate: 0
-                },
-            engagement: engagementRes?.data && typeof engagementRes.data === 'object' && 'dailyActiveUsers' in engagementRes.data
-              ? engagementRes.data as AnalyticsData['engagement']
-              : {
-                  dailyActiveUsers: [],
-                  readingTime: [],
-                  pageViews: []
-                },
-            progress: progressRes?.data && typeof progressRes.data === 'object' && 'completionRates' in progressRes.data
-              ? progressRes.data as AnalyticsData['progress']
-              : {
-                  completionRates: [],
-                  assignmentStats: []
-                },
-            timeAnalysis: {
-              peakHours: [],
-              weeklyPatterns: []
-            }
+          const analyticsData = analyticsRes.data as Record<string, any>
+          if (analyticsData && typeof analyticsData === 'object' && Object.keys(analyticsData).length > 0) {
+            setAnalyticsData(analyticsData as AnalyticsData)
           }
-          
-          setAnalyticsData(combinedData)
-        }
 
-        const studentsRes = await apiClient.getStudents(undefined).catch(() => ({ data: [] }))
-        if (Array.isArray(studentsRes?.data)) {
-          const transformedStudents: StudentAnalytics[] = studentsRes.data.map((student: any) => ({
-            id: student.id,
-            name: student.name,
-            totalScore: student.averageScore || 0,
-            completionRate: student.completionRate || 0,
-            engagementScore: student.engagementScore || 0,
-            riskLevel: determineRiskLevel(student.averageScore, student.completionRate, student.engagementScore)
-          }))
-          setStudentAnalytics(transformedStudents)
+          const studentData = performanceRes?.data
+          if (Array.isArray(studentData)) {
+            setStudentAnalytics(studentData as StudentAnalytics[])
+          }
+        } catch (apiError) {
+          // If API fails, set empty states instead of mock data
+          console.log('Analytics API not available yet, showing empty state')
+          setAnalyticsData(null)
+          setStudentAnalytics([])
         }
-        */
 
       } catch (error) {
         console.error('Failed to load analytics data:', error)
-        
-        // Fallback to mock data if API fails
-        const mockData: AnalyticsData = {
-          studentPerformance: {
-            totalStudents: 28,
-            activeStudents: 24,
-            averageScore: 84.5,
-            improvementRate: 12.3
-          },
-          engagement: {
-            dailyActiveUsers: [
-              { date: '2024-03-14', users: 18 },
-              { date: '2024-03-15', users: 22 },
-              { date: '2024-03-16', users: 16 },
-              { date: '2024-03-17', users: 25 },
-              { date: '2024-03-18', users: 24 },
-              { date: '2024-03-19', users: 21 },
-              { date: '2024-03-20', users: 26 }
-            ],
-            readingTime: [
-              { week: '1주차', minutes: 320 },
-              { week: '2주차', minutes: 385 },
-              { week: '3주차', minutes: 412 },
-              { week: '4주차', minutes: 367 },
-              { week: '5주차', minutes: 445 }
-            ],
-            pageViews: [
-              { page: '1장', views: 156 },
-              { page: '2장', views: 134 },
-              { page: '3장', views: 98 },
-              { page: '4장', views: 67 },
-              { page: '5장', views: 34 }
-            ]
-          },
-          progress: {
-            completionRates: [
-              { textbook: '현대문학의 이해', rate: 78 },
-              { textbook: '고전문학 감상', rate: 85 },
-              { textbook: '실용 국어', rate: 65 },
-              { textbook: '창의적 글쓰기', rate: 72 }
-            ],
-            assignmentStats: [
-              { subject: '문학', completed: 24, total: 28 },
-              { subject: '문법', completed: 22, total: 28 },
-              { subject: '작문', completed: 19, total: 28 },
-              { subject: '독서', completed: 26, total: 28 }
-            ]
-          },
-          timeAnalysis: {
-            peakHours: [
-              { hour: 9, activity: 45 },
-              { hour: 10, activity: 78 },
-              { hour: 11, activity: 65 },
-              { hour: 14, activity: 82 },
-              { hour: 15, activity: 95 },
-              { hour: 16, activity: 67 },
-              { hour: 20, activity: 34 },
-              { hour: 21, activity: 28 }
-            ],
-            weeklyPatterns: [
-              { day: '월', sessions: 85 },
-              { day: '화', sessions: 92 },
-              { day: '수', sessions: 78 },
-              { day: '목', sessions: 88 },
-              { day: '금', sessions: 76 },
-              { day: '토', sessions: 23 },
-              { day: '일', sessions: 18 }
-            ]
-          }
-        }
-
-        const mockStudentAnalytics: StudentAnalytics[] = [
-          { id: '1', name: '김민수', totalScore: 92, completionRate: 85, engagementScore: 78, riskLevel: 'low' },
-          { id: '2', name: '이서연', totalScore: 96, completionRate: 95, engagementScore: 92, riskLevel: 'low' },
-          { id: '3', name: '박준호', totalScore: 78, completionRate: 65, engagementScore: 58, riskLevel: 'medium' },
-          { id: '4', name: '최유진', totalScore: 65, completionRate: 45, engagementScore: 34, riskLevel: 'high' },
-          { id: '5', name: '정민호', totalScore: 88, completionRate: 82, engagementScore: 75, riskLevel: 'low' },
-          { id: '6', name: '한소영', totalScore: 71, completionRate: 58, engagementScore: 62, riskLevel: 'medium' }
-        ]
-
-        setAnalyticsData(mockData)
-        setStudentAnalytics(mockStudentAnalytics)
-        
-        toast.info('분석 데이터를 불러왔습니다 (데모 데이터)')
+        setAnalyticsData(null)
+        setStudentAnalytics([])
+        toast.error('분석 데이터를 불러올 수 없습니다.')
       } finally {
         setIsLoading(false)
       }

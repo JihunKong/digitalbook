@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
 import { EnhancedFileUpload } from '@/components/multimedia/EnhancedFileUpload'
+import { PDFViewer } from '@/components/multimedia/PDFViewer'
 import { 
   FileText, 
   Upload, 
@@ -21,7 +22,10 @@ import {
   Loader2,
   ChevronRight,
   Image as ImageIcon,
-  HelpCircle
+  HelpCircle,
+  Type,
+  File as FileIcon,
+  Layers
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api'
@@ -32,12 +36,20 @@ export default function CreateTextbookPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [isProcessing, setIsProcessing] = useState(false)
   
+  // 4단계에서 isProcessing 상태 디버깅
+  useEffect(() => {
+    if (currentStep === 4) {
+      console.log('🟦 STEP 4 - isProcessing state:', isProcessing);
+    }
+  }, [currentStep, isProcessing]);
+  
   const [formData, setFormData] = useState({
     title: '',
     subject: '국어',
     gradeLevel: 2,
     content: '',
     description: '',
+    contentType: 'TEXT' as 'TEXT' | 'FILE' | 'MIXED',
     targetPageLength: 500,
     generateImages: true,
     generateQuestions: true,
@@ -59,15 +71,92 @@ export default function CreateTextbookPage() {
     topics: string[];
   } | null>(null)
 
+  const [uploadedFile, setUploadedFile] = useState<{
+    id: string;
+    url: string;
+    name: string;
+    type: string;
+  } | null>(null)
+
+  // Stable callback for file upload completion
+  const handleUploadComplete = useCallback((files: Array<{ id: string; url: string; type: string; name: string; extractedText?: string }>) => {
+    console.log('🔥 Upload complete callback received:', files);
+    
+    // Handle file upload and extract text content
+    if (files.length > 0) {
+      const file = files[0];
+      const extractedText = file.extractedText;
+      
+      console.log('🔥 Extracted text length:', extractedText?.length || 0);
+      console.log('🔥 File object keys:', Object.keys(file));
+      
+      // Store uploaded file info for PDF viewer - ALWAYS set this regardless of content type
+      const uploadedFileInfo = {
+        id: file.id,
+        url: file.url,
+        name: file.name,
+        type: file.type
+      };
+      
+      console.log('🔥 Setting uploadedFile state:', uploadedFileInfo);
+      setUploadedFile(uploadedFileInfo);
+      
+      // Add debug log to check state after update
+      setTimeout(() => {
+        console.log('🔥 uploadedFile state after update:', uploadedFileInfo);
+      }, 100);
+      
+      // Get current content type for conditional logic
+      setFormData(prev => {
+        const currentContentType = prev.contentType;
+        console.log('🔥 Current content type:', currentContentType);
+        
+        // TEXT 모드에서는 추출된 텍스트를 content 필드에 설정
+        // FILE/MIXED 모드에서는 파일 정보만 저장
+        if (currentContentType === 'TEXT' && extractedText && extractedText.trim()) {
+          console.log('🔥 Setting formData.content with extracted text');
+          
+          toast({
+            title: '파일 업로드 완료',
+            description: `${file.name} 파일에서 텍스트를 성공적으로 추출했습니다. (${extractedText.length}자)`,
+          });
+          
+          return {
+            ...prev,
+            content: extractedText
+          };
+        } else {
+          toast({
+            title: '파일 업로드 완료',
+            description: `${file.name} 파일이 성공적으로 업로드되었습니다.`,
+          });
+          
+          return prev; // No content change for FILE/MIXED modes
+        }
+      });
+    } else {
+      console.log('🔥 No files in callback!');
+    }
+  }, [toast]) // Remove contentType dependency to avoid stale closure
+
   const steps = [
     { number: 1, title: '기본 정보', icon: BookOpen },
-    { number: 2, title: '텍스트 입력', icon: FileText },
-    { number: 3, title: 'AI 설정', icon: Settings },
-    { number: 4, title: '미리보기', icon: Sparkles },
+    { number: 2, title: '콘텐츠 타입', icon: Layers },
+    { number: 3, title: '콘텐츠 입력', icon: FileText },
+    { number: 4, title: 'AI 설정', icon: Settings },
+    { number: 5, title: '미리보기', icon: Sparkles },
   ]
 
   const handleNext = async () => {
-    if (currentStep === 3 && !analysisResult) {
+    console.log('handleNext called:', {
+      currentStep,
+      contentType: formData.contentType,
+      contentLength: formData.content.length,
+      uploadedFile: uploadedFile,
+      hasUploadedFile: !!uploadedFile
+    });
+    
+    if (currentStep === 4 && !analysisResult) {
       // Perform analysis when moving to preview step
       setIsProcessing(true);
       try {
@@ -95,9 +184,52 @@ export default function CreateTextbookPage() {
   }
 
   const analyzeContent = async () => {
-    if (!formData.content.trim()) return null;
+    console.log('🔍 Analyzing content:', {
+      contentType: formData.contentType,
+      hasContent: !!formData.content.trim(),
+      hasUploadedFile: !!uploadedFile,
+      uploadedFileName: uploadedFile?.name
+    });
+
+    // FILE 전용 모드에서는 업로드된 파일 정보 기반 분석
+    if (formData.contentType === 'FILE' && uploadedFile) {
+      console.log('📄 Creating FILE mode analysis result');
+      return {
+        totalWords: 0,
+        totalChars: 0,
+        estimatedPages: 1,
+        sections: [{
+          title: `파일: ${uploadedFile.name}`,
+          content: `파일 기반 콘텐츠 (${uploadedFile.type})`,
+          startIndex: 0,
+          endIndex: 0,
+          estimatedReadTime: 5
+        }],
+        difficulty: 'medium',
+        topics: ['파일 콘텐츠']
+      };
+    }
+
+    // 텍스트 콘텐츠가 없으면 기본 분석 결과 반환
+    if (!formData.content.trim()) {
+      console.log('📝 No content available, returning default analysis');
+      return {
+        totalWords: 0,
+        totalChars: 0,
+        estimatedPages: 1,
+        sections: [{
+          title: '기본 콘텐츠',
+          content: '콘텐츠가 설정되지 않았습니다.',
+          startIndex: 0,
+          endIndex: 0,
+          estimatedReadTime: 1
+        }],
+        difficulty: 'easy',
+        topics: ['기본']
+      };
+    }
     
-    // Simulate AI analysis
+    // 텍스트 기반 분석
     const words = formData.content.split(/\s+/).length;
     const chars = formData.content.length;
     const estimatedPages = Math.ceil(chars / formData.targetPageLength);
@@ -139,10 +271,28 @@ export default function CreateTextbookPage() {
     
     try {
       // 필수 필드 검증
-      if (!formData.title || !formData.content) {
+      if (!formData.title) {
         toast({
           title: '필수 항목 누락',
-          description: '제목과 텍스트를 입력해주세요.',
+          description: '제목을 입력해주세요.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      if (formData.contentType !== 'FILE' && !formData.content.trim()) {
+        toast({
+          title: '필수 항목 누락',
+          description: '콘텐츠를 입력해주세요.',
+          variant: 'destructive',
+        })
+        return
+      }
+
+      if (formData.contentType === 'FILE' && !uploadedFile) {
+        toast({
+          title: '필수 항목 누락',
+          description: '파일을 업로드해주세요.',
           variant: 'destructive',
         })
         return
@@ -156,15 +306,20 @@ export default function CreateTextbookPage() {
         targetPageLength: formData.targetPageLength
       }
 
-      // 교과서 생성
-      const newTextbook = await apiClient.createTextbook({
+      // 교과서 생성 데이터 구성
+      const textbookData = {
         title: formData.title,
         subject: formData.subject,
         grade: formData.gradeLevel,
         description: formData.description,
+        contentType: formData.contentType,
         content: formData.content,
+        fileId: uploadedFile?.id,
         aiSettings
-      })
+      }
+
+      // 교과서 생성
+      const newTextbook = await apiClient.createTextbook(textbookData)
       
       toast({
         title: '교재 생성 완료',
@@ -172,9 +327,9 @@ export default function CreateTextbookPage() {
       })
       
       // 생성된 교과서 편집 페이지로 이동
-      const textbookData = newTextbook.data as { id?: string }
-      if (textbookData?.id) {
-        router.push(`/teacher/textbooks/${textbookData.id}/edit`)
+      const textbookResponse = newTextbook.data as { id?: string }
+      if (textbookResponse?.id) {
+        router.push(`/teacher/textbooks/${textbookResponse.id}/edit`)
       } else {
         router.push('/teacher/textbooks')
       }
@@ -200,7 +355,7 @@ export default function CreateTextbookPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">새 교재 만들기</h1>
-          <p className="text-gray-600">AI가 텍스트를 분석하여 최적의 디지털 교재를 생성합니다</p>
+          <p className="text-gray-600">AI가 콘텐츠를 분석하여 최적의 디지털 교재를 생성합니다</p>
         </div>
 
         {/* Progress Steps */}
@@ -308,61 +463,207 @@ export default function CreateTextbookPage() {
                 className="space-y-6"
               >
                 <div>
-                  <Label htmlFor="content">교재 내용</Label>
-                  <p className="text-sm text-gray-600 mb-2">
-                    텍스트를 직접 입력하거나 파일을 업로드하세요
+                  <Label>콘텐츠 타입 선택</Label>
+                  <p className="text-sm text-gray-600 mb-4">
+                    교재의 콘텐츠 구성 방식을 선택하세요
                   </p>
-                  <Textarea
-                    id="content"
-                    placeholder="교재 내용을 입력하세요..."
-                    value={formData.content}
-                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                    className="mt-1 min-h-[400px] font-mono text-sm"
-                  />
-                </div>
-
-                <div className="mt-4">
-                  <Label>파일 업로드</Label>
-                  <p className="text-sm text-gray-600 mb-2">
-                    PDF, TXT, DOCX 파일을 업로드하여 내용을 자동으로 불러올 수 있습니다
-                  </p>
-                  <EnhancedFileUpload
-                    acceptedTypes={['.pdf', '.txt', '.docx', '.doc', 'application/pdf', 'text/plain', 
-                                   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                                   'application/msword']}
-                    maxFileSize={50}
-                    maxFiles={1}
-                    onUploadComplete={(files) => {
-                      // Handle file upload and extract text content
-                      if (files.length > 0) {
-                        const file = files[0];
-                        const extractedText = (file as any).extractedText;
-                        
-                        if (extractedText) {
-                          // Update the content field with extracted text
-                          setFormData(prev => ({
-                            ...prev,
-                            content: extractedText
-                          }));
-                          
-                          toast({
-                            title: '파일 업로드 완료',
-                            description: `${file.name} 파일에서 텍스트를 성공적으로 추출했습니다.`,
-                          });
-                        } else {
-                          toast({
-                            title: '파일 업로드 완료',
-                            description: `${file.name} 파일이 업로드되었습니다.`,
-                          });
-                        }
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                      {
+                        type: 'TEXT' as const,
+                        icon: Type,
+                        title: '텍스트 전용',
+                        description: '순수 텍스트 콘텐츠로만 구성',
+                        example: '텍스트 기반 설명, 이론, 개념 정리'
+                      },
+                      {
+                        type: 'FILE' as const,
+                        icon: FileIcon,
+                        title: '파일 전용',
+                        description: 'PDF, 이미지, 동영상 등 파일 중심',
+                        example: 'PDF 문서, 이미지 자료, 동영상 강의'
+                      },
+                      {
+                        type: 'MIXED' as const,
+                        icon: Layers,
+                        title: '혼합 콘텐츠',
+                        description: '텍스트와 파일을 함께 활용',
+                        example: '설명 텍스트 + 참고 자료, 이론 + 실습 파일'
                       }
-                    }}
-                  />
+                    ].map((option) => {
+                      const isSelected = formData.contentType === option.type;
+                      return (
+                        <div
+                          key={option.type}
+                          className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => setFormData({ ...formData, contentType: option.type })}
+                        >
+                          <div className="flex flex-col items-center text-center space-y-2">
+                            <option.icon className={`w-8 h-8 ${
+                              isSelected ? 'text-blue-600' : 'text-gray-600'
+                            }`} />
+                            <h3 className={`font-medium ${
+                              isSelected ? 'text-blue-900' : 'text-gray-900'
+                            }`}>
+                              {option.title}
+                            </h3>
+                            <p className={`text-xs ${
+                              isSelected ? 'text-blue-700' : 'text-gray-600'
+                            }`}>
+                              {option.description}
+                            </p>
+                            <p className={`text-xs italic ${
+                              isSelected ? 'text-blue-600' : 'text-gray-500'
+                            }`}>
+                              예: {option.example}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </motion.div>
             )}
 
             {currentStep === 3 && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                {/* 텍스트 전용 또는 혼합 모드에서 텍스트 입력 */}
+                {(formData.contentType === 'TEXT' || formData.contentType === 'MIXED') && (
+                  <div>
+                    <Label htmlFor="content">
+                      {formData.contentType === 'TEXT' ? '교재 내용' : '텍스트 콘텐츠'}
+                    </Label>
+                    <p className="text-sm text-gray-600 mb-2">
+                      {formData.contentType === 'TEXT' 
+                        ? '교재의 텍스트 내용을 입력하세요'
+                        : '파일과 함께 표시될 텍스트 설명을 입력하세요'
+                      }
+                    </p>
+                    <Textarea
+                      id="content"
+                      placeholder={
+                        formData.contentType === 'TEXT'
+                          ? "교재 내용을 입력하세요..."
+                          : "파일에 대한 설명이나 보충 설명을 입력하세요..."
+                      }
+                      value={formData.content}
+                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                      className="mt-1 min-h-[300px] font-mono text-sm"
+                    />
+                  </div>
+                )}
+
+                {/* 파일 전용 또는 혼합 모드에서 파일 업로드 */}
+                {(formData.contentType === 'FILE' || formData.contentType === 'MIXED') && (
+                  <div>
+                    <Label>
+                      {formData.contentType === 'FILE' ? '메인 파일 업로드' : '참고 파일 업로드'}
+                    </Label>
+                    <p className="text-sm text-gray-600 mb-2">
+                      {formData.contentType === 'FILE'
+                        ? 'PDF, 이미지, 동영상 등 교재의 메인 콘텐츠 파일을 업로드하세요'
+                        : 'PDF, 이미지, 동영상 등 텍스트와 함께 표시할 참고 자료를 업로드하세요'
+                      }
+                    </p>
+                    <EnhancedFileUpload
+                      acceptedTypes={
+                        formData.contentType === 'FILE'
+                          ? ['.pdf', '.txt', '.md', '.markdown', '.docx', '.doc', '.jpg', '.jpeg', '.png', '.gif', '.mp4', '.webm',
+                             'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown',
+                             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                             'application/msword', 'image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/webm']
+                          : ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.mp4', '.webm',
+                             'application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'video/webm']
+                      }
+                      maxFileSize={formData.contentType === 'FILE' ? 100 : 50}
+                      maxFiles={1}
+                      onUploadComplete={handleUploadComplete}
+                    />
+                  </div>
+                )}
+                
+                {/* 텍스트 전용 모드에서 텍스트 자동 추출용 파일 업로드 */}
+                {formData.contentType === 'TEXT' && (
+                  <div>
+                    <Label>텍스트 파일 업로드 (선택사항)</Label>
+                    <p className="text-sm text-gray-600 mb-2">
+                      PDF, TXT, MD, DOCX 파일을 업로드하여 텍스트를 자동으로 추출할 수 있습니다
+                    </p>
+                    <EnhancedFileUpload
+                      acceptedTypes={['.pdf', '.txt', '.md', '.markdown', '.docx', '.doc', 
+                                     'application/pdf', 'text/plain', 'text/markdown', 'text/x-markdown',
+                                     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                     'application/msword']}
+                      maxFileSize={50}
+                      maxFiles={1}
+                      onUploadComplete={handleUploadComplete}
+                    />
+                  </div>
+                )}
+
+                {/* PDF 뷰어 - PDF 파일이 업로드된 경우에만 표시 */}
+                {uploadedFile && uploadedFile.type === 'application/pdf' && (
+                  <div className="mt-6">
+                    <PDFViewer
+                      fileUrl={uploadedFile.url}
+                      fileName={uploadedFile.name}
+                      onExtractText={(text) => {
+                        // PDF 뷰어에서 추가 텍스트 추출이 가능한 경우
+                        if (formData.contentType === 'TEXT') {
+                          setFormData(prev => ({
+                            ...prev,
+                            content: text
+                          }));
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* 업로드된 파일 정보 표시 */}
+                {uploadedFile && (
+                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">업로드된 파일: {uploadedFile.name}</p>
+                        <p className="text-xs text-gray-600">
+                          {uploadedFile.type === 'application/pdf' ? 'PDF 문서' : 
+                           uploadedFile.type.startsWith('image/') ? '이미지 파일' :
+                           uploadedFile.type.startsWith('video/') ? '동영상 파일' :
+                           uploadedFile.type === 'text/plain' ? '텍스트 파일' : 
+                           '문서 파일'}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setUploadedFile(null);
+                          if (formData.contentType === 'TEXT') {
+                            setFormData(prev => ({ ...prev, content: '' }));
+                          }
+                        }}
+                      >
+                        파일 제거
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {currentStep === 4 && (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -445,7 +746,7 @@ export default function CreateTextbookPage() {
               </motion.div>
             )}
 
-            {currentStep === 4 && analysisResult && (
+            {currentStep === 5 && analysisResult && (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -456,6 +757,27 @@ export default function CreateTextbookPage() {
                   <h3 className="text-lg font-semibold mb-2">AI 분석 결과</h3>
                   <p className="text-gray-600">생성될 교재의 구조를 확인하세요</p>
                 </div>
+
+                {/* Content Type Summary */}
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      {formData.contentType === 'TEXT' && <Type className="w-6 h-6 text-blue-600" />}
+                      {formData.contentType === 'FILE' && <FileIcon className="w-6 h-6 text-green-600" />}
+                      {formData.contentType === 'MIXED' && <Layers className="w-6 h-6 text-purple-600" />}
+                      <span className="text-lg font-semibold">
+                        {formData.contentType === 'TEXT' && '텍스트 전용'}
+                        {formData.contentType === 'FILE' && '파일 전용'}
+                        {formData.contentType === 'MIXED' && '혼합 콘텐츠'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {formData.contentType === 'TEXT' && '순수 텍스트 기반 교재'}
+                      {formData.contentType === 'FILE' && '파일 중심 교재'}
+                      {formData.contentType === 'MIXED' && '텍스트와 파일을 결합한 교재'}
+                    </p>
+                  </CardContent>
+                </Card>
 
                 {/* Analysis Summary */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -546,6 +868,14 @@ export default function CreateTextbookPage() {
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
+                        <p className="font-medium">콘텐츠 타입</p>
+                        <p className="text-blue-600">
+                          {formData.contentType === 'TEXT' && '텍스트 전용'}
+                          {formData.contentType === 'FILE' && '파일 전용'}
+                          {formData.contentType === 'MIXED' && '혼합 콘텐츠'}
+                        </p>
+                      </div>
+                      <div>
                         <p className="font-medium">이미지 생성</p>
                         <p className={formData.generateImages ? 'text-green-600' : 'text-gray-600'}>
                           {formData.generateImages ? '활성화' : '비활성화'}
@@ -557,6 +887,10 @@ export default function CreateTextbookPage() {
                           {formData.generateQuestions ? `활성화 (${formData.questionDifficulty})` : '비활성화'}
                         </p>
                       </div>
+                      <div>
+                        <p className="font-medium">페이지 길이</p>
+                        <p className="text-gray-700">{formData.targetPageLength}자</p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -564,6 +898,7 @@ export default function CreateTextbookPage() {
             )}
           </CardContent>
         </Card>
+
 
         {/* Actions */}
         <div className="flex justify-between mt-6">
@@ -576,11 +911,41 @@ export default function CreateTextbookPage() {
           </Button>
           
           {currentStep < steps.length ? (
-            <Button 
+            <Button
               onClick={handleNext}
-              disabled={isProcessing || (currentStep === 3 && !formData.content.trim())}
+              disabled={(() => {
+                // 4단계에서는 항상 활성화 (AI 설정은 선택사항)
+                if (currentStep === 4) {
+                  console.log('🟢 STEP 4 - Button ENABLED (AI settings are optional)');
+                  return false;
+                }
+                
+                // 1단계: 제목 필수
+                const isStep1Invalid = currentStep === 1 && !formData.title.trim();
+                
+                // 3단계: 콘텐츠 타입별 검증
+                const isStep3TextModeInvalid = currentStep === 3 && formData.contentType !== 'FILE' && !formData.content.trim();
+                const isStep3FileModeInvalid = currentStep === 3 && formData.contentType === 'FILE' && !uploadedFile;
+                
+                const shouldDisable = isProcessing || isStep1Invalid || isStep3TextModeInvalid || isStep3FileModeInvalid;
+                
+                console.log('🔥 Next button validation:', {
+                  currentStep,
+                  isProcessing,
+                  isStep1Invalid,
+                  isStep3TextModeInvalid,
+                  isStep3FileModeInvalid,
+                  shouldDisable,
+                  contentType: formData.contentType,
+                  hasContent: !!formData.content.trim(),
+                  hasUploadedFile: !!uploadedFile
+                });
+                
+                return shouldDisable;
+              })()}
+              className="gap-2"
             >
-              {isProcessing && currentStep === 3 ? (
+              {isProcessing && currentStep === 4 ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   분석 중...
@@ -592,7 +957,9 @@ export default function CreateTextbookPage() {
           ) : (
             <Button
               onClick={handleSubmit}
-              disabled={isProcessing || !formData.title || !formData.content}
+              disabled={isProcessing || !formData.title || 
+                       (formData.contentType !== 'FILE' && !formData.content) ||
+                       (formData.contentType === 'FILE' && !uploadedFile)}
               className="gap-2"
             >
               {isProcessing ? (

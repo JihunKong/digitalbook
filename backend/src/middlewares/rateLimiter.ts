@@ -1,6 +1,4 @@
 import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
-import { getRedis } from '../config/redis';
 import { Request, Response } from 'express';
 import { logSecurity } from '../utils/logger';
 import { RateLimitError } from '../middlewares/errorHandler';
@@ -17,85 +15,40 @@ interface RateLimiterConfig {
 // Cache for rate limiters
 const rateLimiterCache: Map<string, RateLimitRequestHandler> = new Map();
 
-// Create rate limiter with Redis store (lazy initialization)
+// Create rate limiter at initialization time
 function createRateLimiter(name: string, config: RateLimiterConfig): RateLimitRequestHandler {
-  // Return a middleware that creates the actual rate limiter on first use
-  return (req: Request, res: Response, next: any) => {
-    // Check if we have a cached rate limiter
-    let limiter = rateLimiterCache.get(name);
+  // Create the actual rate limiter immediately
+  console.info(`Creating memory-based rate limiter for ${name}`);
+  const limiter = rateLimit({
+      windowMs: config.windowMs,
+      max: config.max,
+      message: config.message || 'Too many requests, please try again later.',
+      standardHeaders: true,
+      legacyHeaders: false,
+      skipSuccessfulRequests: config.skipSuccessfulRequests || false,
+      keyGenerator: config.keyGenerator || ((req: Request) => {
+        // Use user ID if authenticated, otherwise use IP
+        const userId = (req as any).user?.id;
+        return userId ? `user:${userId}` : `ip:${req.ip}`;
+      }),
+      handler: (req: Request, res: Response) => {
+        logSecurity('Rate limit exceeded', {
+          limiter: name,
+          ip: req.ip,
+          userId: (req as any).user?.id,
+          path: req.path,
+          method: req.method,
+        }, req);
+        
+        throw new RateLimitError(config.message || 'Too many requests');
+      },
+    });
     
-    if (!limiter) {
-      try {
-        // Try to get Redis client
-        const redisClient = getRedis();
-        
-        // Create the actual rate limiter with Redis store
-        limiter = rateLimit({
-          windowMs: config.windowMs,
-          max: config.max,
-          message: config.message || 'Too many requests, please try again later.',
-          standardHeaders: true,
-          legacyHeaders: false,
-          skipSuccessfulRequests: config.skipSuccessfulRequests || false,
-          keyGenerator: config.keyGenerator || ((req: Request) => {
-            // Use user ID if authenticated, otherwise use IP
-            const userId = (req as any).user?.id;
-            return userId ? `user:${userId}` : `ip:${req.ip}`;
-          }),
-          store: new RedisStore({
-            client: redisClient,
-            prefix: `rate_limit:${name}:`,
-          }),
-          handler: (req: Request, res: Response) => {
-            logSecurity('Rate limit exceeded', {
-              limiter: name,
-              ip: req.ip,
-              userId: (req as any).user?.id,
-              path: req.path,
-              method: req.method,
-            }, req);
-            
-            throw new RateLimitError(config.message || 'Too many requests');
-          },
-        });
-        
-        // Cache the limiter
-        rateLimiterCache.set(name, limiter);
-      } catch (error) {
-        // If Redis is not available, create a memory-based rate limiter
-        console.warn(`Redis not available for rate limiter ${name}, using memory store`);
-        limiter = rateLimit({
-          windowMs: config.windowMs,
-          max: config.max,
-          message: config.message || 'Too many requests, please try again later.',
-          standardHeaders: true,
-          legacyHeaders: false,
-          skipSuccessfulRequests: config.skipSuccessfulRequests || false,
-          keyGenerator: config.keyGenerator || ((req: Request) => {
-            // Use user ID if authenticated, otherwise use IP
-            const userId = (req as any).user?.id;
-            return userId ? `user:${userId}` : `ip:${req.ip}`;
-          }),
-          handler: (req: Request, res: Response) => {
-            logSecurity('Rate limit exceeded', {
-              limiter: name,
-              ip: req.ip,
-              userId: (req as any).user?.id,
-              path: req.path,
-              method: req.method,
-            }, req);
-            
-            throw new RateLimitError(config.message || 'Too many requests');
-          },
-        });
-        
-        // Don't cache memory-based limiters so we can retry Redis later
-      }
-    }
+    // Cache the limiter
+    rateLimiterCache.set(name, limiter);
     
-    // Apply the rate limiter
-    return limiter(req, res, next);
-  };
+    // Return the limiter directly
+    return limiter;
 }
 
 // General API rate limiter
@@ -164,9 +117,45 @@ export const exportRateLimiter = createRateLimiter('export', {
 
 // Dynamic rate limiter based on user tier
 export function createDynamicRateLimiter(name: string, getTierLimits: (req: Request) => RateLimiterConfig) {
+  const limiterCache: Map<string, RateLimitRequestHandler> = new Map();
+  
   return (req: Request, res: Response, next: Function) => {
     const config = getTierLimits(req);
-    const limiter = createRateLimiter(`${name}_dynamic`, config);
+    const user = (req as any).user;
+    const tier = user?.tier || 'free';
+    const limiterKey = `${name}_${tier}`;
+    
+    let limiter = limiterCache.get(limiterKey);
+    if (!limiter) {
+      // Create limiter for this tier at initialization time
+      console.info(`Creating memory-based dynamic rate limiter for ${limiterKey}`);
+      limiter = rateLimit({
+        windowMs: config.windowMs,
+        max: config.max,
+        message: config.message || 'Too many requests, please try again later.',
+        standardHeaders: true,
+        legacyHeaders: false,
+        skipSuccessfulRequests: config.skipSuccessfulRequests || false,
+        keyGenerator: config.keyGenerator || ((req: Request) => {
+          const userId = (req as any).user?.id;
+          return userId ? `user:${userId}` : `ip:${req.ip}`;
+        }),
+        handler: (req: Request, res: Response) => {
+          logSecurity('Rate limit exceeded', {
+            limiter: limiterKey,
+            ip: req.ip,
+            userId: (req as any).user?.id,
+            path: req.path,
+            method: req.method,
+          }, req);
+          
+          throw new RateLimitError(config.message || 'Too many requests');
+        },
+      });
+      
+      limiterCache.set(limiterKey, limiter);
+    }
+    
     limiter(req, res, next);
   };
 }

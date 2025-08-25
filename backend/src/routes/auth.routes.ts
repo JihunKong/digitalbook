@@ -10,25 +10,33 @@ router.post(
   '/register',
   authRateLimiter,
   validateRequest(authSchemas.register),
-  authController.register
+  (req, res, next) => authController.register(req, res, next)
+);
+
+// Alias for frontend compatibility
+router.post(
+  '/signup',
+  authRateLimiter,
+  validateRequest(authSchemas.register),
+  (req, res, next) => authController.register(req, res, next)
 );
 
 router.post(
   '/login',
   authRateLimiter,
   validateRequest(authSchemas.login),
-  authController.login
+  (req, res, next) => authController.login(req, res, next)
 );
 
 router.post(
   '/refresh',
   authRateLimiter,
-  authController.refreshToken
+  (req, res, next) => authController.refreshToken(req, res, next)
 );
 
 router.post(
   '/logout',
-  authController.logout
+  (req, res, next) => authController.logout(req, res, next)
 );
 
 export default router;

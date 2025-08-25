@@ -19,7 +19,7 @@ interface TokenPayload {
 // 확장된 Request 타입
 interface AuthRequest extends Request {
   user?: {
-    id: string;
+    userId: string;
     email: string;
     name: string;
     role: 'ADMIN' | 'TEACHER';
@@ -194,10 +194,10 @@ class UnifiedAuthController {
       };
 
       // 토큰 생성
-      const accessToken = jwt.sign(tokenPayload as object, this.JWT_SECRET!, {
+      const accessToken = jwt.sign({ ...tokenPayload } as Record<string, any>, this.JWT_SECRET!, {
         expiresIn: this.ACCESS_TOKEN_EXPIRES
       });
-      const refreshToken = jwt.sign(tokenPayload as object, this.JWT_REFRESH_SECRET!, {
+      const refreshToken = jwt.sign({ ...tokenPayload } as Record<string, any>, this.JWT_REFRESH_SECRET!, {
         expiresIn: rememberMe ? '30d' : this.REFRESH_TOKEN_EXPIRES
       });
 
@@ -352,7 +352,7 @@ class UnifiedAuthController {
           email: user.email,
           name: user.name,
           role: user.role
-        } as object,
+        } as Record<string, any>,
         this.JWT_SECRET!,
         { expiresIn: this.ACCESS_TOKEN_EXPIRES }
       );
@@ -404,10 +404,10 @@ class UnifiedAuthController {
       }
 
       // 사용자 활동 로그 (인증된 경우에만)
-      if (req.user?.id) {
+      if (req.user?.userId) {
         await prisma.userActivity.create({
           data: {
-            userId: req.user.id,
+            userId: req.user.userId,
             action: 'LOGOUT',
             ipAddress: req.ip,
             userAgent: req.headers['user-agent']
@@ -440,7 +440,7 @@ class UnifiedAuthController {
 
       const prisma = getDatabase();
       const user = await prisma.user.findUnique({
-        where: { id: req.user.id },
+        where: { id: req.user.userId },
         include: {
           teacherProfile: true,
           studentProfile: true,
@@ -506,8 +506,8 @@ class UnifiedAuthController {
           guestId: guestAccess.id,
           accessCode,
           role: 'GUEST'
-        } as object,
-        this.JWT_SECRET!,
+        } as any,
+        this.JWT_SECRET as string,
         { expiresIn: duration }
       );
 

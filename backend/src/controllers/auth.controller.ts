@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getDatabase } from '../config/database';
 import { getRedis } from '../config/redis';
-import { config } from '../config/env.validation';
+// Environment config is accessed via process.env
 import { AppError } from '../middlewares/errorHandler';
 import { logger } from '../utils/logger';
 import { UserRole } from '@prisma/client';
@@ -34,16 +34,23 @@ const cookieOptions = {
 class AuthController {
   // 토큰 생성 헬퍼 메서드
   private generateTokenPair(payload: JWTPayload): TokenPair {
+    const jwtSecret = process.env.JWT_SECRET;
+    const refreshSecret = process.env.JWT_REFRESH_SECRET;
+    
+    if (!jwtSecret || !refreshSecret) {
+      throw new Error('JWT secrets are not configured');
+    }
+    
     const accessToken = jwt.sign(
-      payload as object,
-      config.JWT_SECRET as string,
-      { expiresIn: config.ACCESS_TOKEN_EXPIRES }
+      payload,
+      jwtSecret,
+      { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' }
     );
     
     const refreshToken = jwt.sign(
-      payload as object,
-      config.JWT_REFRESH_SECRET as string,
-      { expiresIn: config.REFRESH_TOKEN_EXPIRES }
+      payload,
+      refreshSecret,
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRES || '7d' }
     );
     
     return { accessToken, refreshToken };
@@ -136,8 +143,19 @@ class AuthController {
         });
         
         // 역할별 프로필 생성
-        if (role !== UserRole.GUEST && profileData) {
-          await this.createRoleProfile(tx, user.id, role, profileData);
+        if (role !== UserRole.GUEST) {
+          // TEACHER의 경우 profileData가 없어도 기본 프로필 생성
+          if (role === UserRole.TEACHER) {
+            const teacherProfileData = profileData || {
+              school: null,
+              subject: null,
+              grade: null,
+              bio: null
+            };
+            await this.createRoleProfile(tx, user.id, role, teacherProfileData);
+          } else if (profileData) {
+            await this.createRoleProfile(tx, user.id, role, profileData);
+          }
         }
         
         // 세션 생성
@@ -369,7 +387,7 @@ class AuthController {
       try {
         decoded = jwt.verify(
           refreshToken,
-          config.JWT_REFRESH_SECRET
+          process.env.JWT_REFRESH_SECRET
         ) as JWTPayload;
       } catch (error) {
         throw new AppError('Invalid refresh token', 401);
@@ -400,15 +418,20 @@ class AuthController {
       }
       
       // 새 액세스 토큰 생성
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        throw new Error('JWT_SECRET not configured');
+      }
+      
       const newAccessToken = jwt.sign(
         {
           userId: session.user.id,
           email: session.user.email,
           role: session.user.role,
           sessionId: session.id,
-        } as object,
-        config.JWT_SECRET as string,
-        { expiresIn: config.ACCESS_TOKEN_EXPIRES }
+        },
+        jwtSecret,
+        { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' }
       );
       
       // 세션 활동 시간 업데이트
@@ -450,7 +473,7 @@ class AuthController {
         try {
           const decoded = jwt.verify(
             accessToken,
-            config.JWT_SECRET
+            process.env.JWT_SECRET
           ) as JWTPayload;
           
           // 세션 삭제

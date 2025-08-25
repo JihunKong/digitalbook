@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTTS } from '@/hooks/useTTS'
+import { apiClient } from '@/lib/api'
 
 interface Message {
   id: string
@@ -46,9 +47,11 @@ interface AITutorChatProps {
   pageContent: string
   pageNumber: number
   textbookTitle: string
+  pdfId?: string
+  textbookId?: string
 }
 
-export function AITutorChat({ pageContent, pageNumber, textbookTitle }: AITutorChatProps) {
+export function AITutorChat({ pageContent, pageNumber, textbookTitle, pdfId, textbookId }: AITutorChatProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -113,50 +116,33 @@ export function AITutorChat({ pageContent, pageNumber, textbookTitle }: AITutorC
     setIsTyping(true)
 
     try {
-      // Enhanced AI API call with GPT-4o-mini
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: currentInput,
-          context: {
-            pageContent,
-            pageNumber,
-            textbookTitle,
-            previousMessages: messages.slice(-5) // Include last 5 messages for context
-          },
-          model: 'gpt-4o-mini',
-          systemPrompt: `당신은 한국 초등학생을 위한 전문 AI 튜터입니다. 
-          현재 학생이 "${textbookTitle}"의 ${pageNumber}페이지를 학습하고 있습니다.
-          
-          역할:
-          - 친근하고 이해하기 쉬운 설명
-          - 적절한 이모지 사용
-          - 학습 단계에 맞는 난이도 조절
-          - 창의적이고 흥미로운 예시 제공
-          - 학생의 호기심 자극
-          
-          페이지 내용: ${pageContent}`
-        }),
+      // Use the enhanced backend API with PDF context
+      const sessionId = `session-${textbookId || pdfId || 'default'}-${Date.now()}`
+      
+      const response = await apiClient.sendChatMessage({
+        message: currentInput,
+        sessionId: sessionId,
+        pdfId: pdfId,
+        pageNumber: pageNumber,
+        pageContent: pageContent,
+        textbookId: textbookId
       })
 
-      if (!response.ok) {
-        throw new Error('API call failed')
+      if (response.error) {
+        throw new Error(response.error.message || 'API call failed')
       }
 
-      const result = await response.json()
+      const result = response.data
       
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: result.message || getAIResponse(currentInput, pageContent),
-        timestamp: new Date(),
-        type: result.type || 'text',
+        content: result?.assistantMessage?.content || getAIResponse(currentInput, pageContent),
+        timestamp: result?.assistantMessage?.timestamp || new Date(),
+        type: 'text',
         metadata: {
-          confidence: result.confidence || 0.9,
-          difficulty: result.difficulty || 'medium'
+          confidence: 0.95,
+          difficulty: 'medium'
         }
       }
       

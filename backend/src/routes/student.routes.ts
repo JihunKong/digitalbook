@@ -1,24 +1,19 @@
 import { Router } from 'express';
 import { authenticateStudent } from '../middlewares/auth';
-import {
-  joinClass,
-  getDocument,
-  saveQuestion,
-  getMyQuestions,
-  validateSession
-} from '../controllers/student.controller.new';
+import { studentController } from '../controllers/student.controller';
 import { AIChatService } from '../services/ai-chat.service';
 
 const router = Router();
 const aiChatService = new AIChatService();
 
 // 공개 라우트 (인증 불필요)
-router.post('/student/join', joinClass);
-router.post('/student/session/validate', validateSession);
+router.post('/signup', studentController.createStudent.bind(studentController));
+router.post('/join', studentController.joinClass.bind(studentController));
+router.post('/session/validate', studentController.validateSession.bind(studentController));
 
 // 학생 인증 필요 라우트
-router.get('/student/class/:classId/document', authenticateStudent, getDocument);
-router.get('/student/class/:classId/questions', authenticateStudent, getMyQuestions);
+router.get('/questions/:classId', authenticateStudent, studentController.getMyQuestions.bind(studentController));
+router.post('/questions', authenticateStudent, studentController.saveQuestion.bind(studentController));
 
 // AI 채팅 라우트
 router.post('/student/chat', authenticateStudent, async (req, res) => {

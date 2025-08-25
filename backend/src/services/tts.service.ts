@@ -9,19 +9,49 @@ import crypto from 'crypto';
  * Provides high-quality voice synthesis for educational content
  */
 export class TTSService {
-  private openai: OpenAI;
+  private openai: OpenAI | null;
   private cacheDir: string;
+  private mockMode: boolean;
 
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    this.mockMode = !process.env.OPENAI_API_KEY;
+    
+    if (this.mockMode) {
+      logger.warn('OpenAI API key not found for TTS. Running in mock mode.');
+      this.openai = null;
+    } else {
+      this.openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+    }
     
     // Create cache directory for audio files
     this.cacheDir = path.join(process.cwd(), 'uploads', 'tts-cache');
     if (!fs.existsSync(this.cacheDir)) {
       fs.mkdirSync(this.cacheDir, { recursive: true });
     }
+  }
+
+  /**
+   * Batch generate speech for multiple texts
+   * @param texts - Array of texts to convert
+   * @param voice - Voice option
+   */
+  async batchGenerateSpeech(
+    texts: string[],
+    voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
+  ) {
+    const results = [];
+    for (const text of texts) {
+      try {
+        const result = await this.generateSpeech(text, { voice });
+        results.push({ success: true, ...result });
+      } catch (error) {
+        logger.error('Failed to generate speech for text:', error);
+        results.push({ success: false, error: 'Failed to generate speech' });
+      }
+    }
+    return results;
   }
 
   /**
@@ -60,6 +90,17 @@ export class TTSService {
         };
       }
 
+      // Check if in mock mode
+      if (this.mockMode) {
+        logger.info('TTS: Mock mode - returning placeholder');
+        return {
+          audioUrl: '/api/tts/mock-audio',
+          cached: false,
+          duration: Math.ceil(text.length / 10), // Rough estimate
+          mockMode: true
+        };
+      }
+
       // Generate new audio
       logger.info('TTS: Generating new audio', { 
         textLength: text.length, 
@@ -68,7 +109,7 @@ export class TTSService {
         language 
       });
 
-      const response = await this.openai.audio.speech.create({
+      const response = await this.openai!.audio.speech.create({
         model,
         voice,
         input: text,
@@ -223,6 +264,3 @@ export class TTSService {
     ];
   }
 }
-
-// Export singleton instance
-export const ttsService = new TTSService();

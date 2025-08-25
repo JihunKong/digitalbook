@@ -57,76 +57,20 @@ export default function TeacherAssignmentsPage() {
     const loadAssignments = async () => {
       setIsLoading(true)
       
-      // Mock data for demo
-      const mockAssignments: Assignment[] = [
-        {
-          id: '1',
-          title: '한글의 아름다움 - 받아쓰기',
-          description: '3학년 1학기 국어 교과서 1단원 받아쓰기 과제',
-          textbookId: 'tb1',
-          textbookTitle: '3학년 국어',
-          classId: 'class1',
-          className: '3학년 1반',
-          dueDate: '2024-01-25',
-          createdAt: '2024-01-18',
-          maxScore: 100,
-          submissions: 18,
-          totalStudents: 25,
-          status: 'active',
-          type: 'quiz'
-        },
-        {
-          id: '2',
-          title: '우리나라 전통문화 탐구',
-          description: '한국의 전통문화에 대해 조사하고 발표 자료 만들기',
-          textbookId: 'tb2',
-          textbookTitle: '사회 탐구',
-          classId: 'class1',
-          className: '3학년 1반',
-          dueDate: '2024-01-30',
-          createdAt: '2024-01-20',
-          maxScore: 50,
-          submissions: 12,
-          totalStudents: 25,
-          status: 'active',
-          type: 'project'
-        },
-        {
-          id: '3',
-          title: '곱셈표 외우기 테스트',
-          description: '구구단 전체 암송 및 문제 풀이',
-          textbookId: 'tb3',
-          textbookTitle: '수학의 기초',
-          classId: 'class2',
-          className: '3학년 2반',
-          dueDate: '2024-01-22',
-          createdAt: '2024-01-15',
-          maxScore: 100,
-          submissions: 23,
-          totalStudents: 24,
-          status: 'closed',
-          type: 'quiz'
-        },
-        {
-          id: '4',
-          title: '과학 실험 보고서',
-          description: '물의 상태 변화 실험 관찰 기록',
-          textbookId: 'tb4',
-          textbookTitle: '과학 탐험',
-          classId: 'class1',
-          className: '3학년 1반',
-          dueDate: '2024-02-05',
-          createdAt: '2024-01-22',
-          maxScore: 80,
-          submissions: 0,
-          totalStudents: 25,
-          status: 'draft',
-          type: 'essay'
+      try {
+        // Load real assignments from API
+        const response = await apiClient.getAssignments()
+        if (response?.data) {
+          setAssignments(response.data)
+        } else {
+          setAssignments([])
         }
-      ]
-      
-      setAssignments(mockAssignments)
-      setIsLoading(false)
+      } catch (error) {
+        console.error('Failed to load assignments:', error)
+        setAssignments([])
+      } finally {
+        setIsLoading(false)
+      }
     }
 
     loadAssignments()

@@ -51,16 +51,21 @@ export default function SignupPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
           password: formData.password,
-          role: formData.role
+          role: formData.role,
+          termsAccepted: true
         }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
+        console.error('Registration error:', errorData)
+        console.error('Response status:', response.status)
+        console.error('Response headers:', Object.fromEntries(response.headers.entries()))
         throw new Error(errorData.message || '회원가입에 실패했습니다.')
       }
 

@@ -26,12 +26,12 @@ services:
     container_name: ai-textbook-backend
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:digitalbook2024@postgres:5432/digitalbook
-      - REDIS_URL=redis://:digitalbook2024RedisPassword!@redis:6379
-      - JWT_SECRET=${JWT_SECRET:-digitalbook-prod-secret-2024}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-digitalbook-prod-refresh-secret-2024}
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-digitalbook2024}@postgres:5432/digitalbook
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-digitalbook2024RedisPassword!}@redis:6379
+      - JWT_SECRET=${JWT_SECRET:-1ba73cfb4fd487c489b46e6ab2fd46cfe9689ebd7169ffd1ba4e1fbbb469d1f49b9007c581ba0cfc00287d918aa004465096a65d3d7e740084ba2f840859978e}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-a8f2b76dd6d3e0692362688d6cb697301602ba70538e72fe82018c6fb4d09c7c82c44800026df9e4bcba742cea3e1e8ef44a5b93481c4359edf833daf0cae1b8}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - SESSION_SECRET=${SESSION_SECRET:-digitalbook-prod-session-2024}
+      - SESSION_SECRET=${SESSION_SECRET:-e5b9a2f59a140980aa89a4e74a09e2d94a43592870354896099593f7e062439f}
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,7 +52,7 @@ services:
     container_name: ai-textbook-postgres
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=digitalbook2024
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-digitalbook2024}
       - POSTGRES_DB=digitalbook
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -79,7 +79,7 @@ services:
       - ai-textbook-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "digitalbook2024RedisPassword!", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-digitalbook2024RedisPassword!}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5

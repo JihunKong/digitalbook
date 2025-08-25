@@ -39,7 +39,7 @@ export function AITutor({
     {
       id: '1',
       role: 'assistant',
-      content: '안녕하세요! AI 국어 선생님입니다. 🎓 "세상과 나를 분석하라" 단원을 함께 공부해봐요. 궁금한 점이 있으면 언제든 물어보세요!',
+      content: `안녕하세요! AI ${subject} 선생님입니다. 🎓 궁금한 점이 있으면 언제든 물어보세요!`,
       timestamp: new Date()
     }
   ])

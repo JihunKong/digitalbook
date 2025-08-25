@@ -11,7 +11,8 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://backend:4000
+      - NEXT_PUBLIC_API_URL=http://localhost:80/api
+      - BACKEND_INTERNAL_URL=http://backend:4000
     depends_on:
       - backend
       - postgres
@@ -30,12 +31,21 @@ services:
       - "4000:4000"
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:digitalbook2024@postgres:5432/digitalbook
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-digitalbook2024}@postgres:5432/digitalbook
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-digitalbook-dev-secret-2024}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-digitalbook-dev-refresh-secret-2024}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-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}
-      - SESSION_SECRET=${SESSION_SECRET:-digitalbook-dev-session-2024}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:-1ba73cfb4fd487c489b46e6ab2fd46cfe9689ebd7169ffd1ba4e1fbbb469d1f49b9007c581ba0cfc00287d918aa004465096a65d3d7e740084ba2f840859978e}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-a8f2b76dd6d3e0692362688d6cb697301602ba70538e72fe82018c6fb4d09c7c82c44800026df9e4bcba742cea3e1e8ef44a5b93481c4359edf833daf0cae1b8}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SESSION_SECRET=${SESSION_SECRET:-e5b9a2f59a140980aa89a4e74a09e2d94a43592870354896099593f7e062439f}
+      - MAX_FILE_SIZE=104857600
+      - PDF_PROCESSING_TIMEOUT=60000
+      - CORS_ORIGIN=http://localhost:3000
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/temp:/app/temp
+      - backend_node_modules:/app/node_modules
     depends_on:
       - postgres
       - redis
@@ -48,19 +58,19 @@ services:
       timeout: 10s
       retries: 3
 
-  # PostgreSQL Database
+  # PostgreSQL Database with pgvector
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: ai-textbook-postgres
     ports:
       - "5432:5432"
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=digitalbook2024
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-digitalbook2024}
       - POSTGRES_DB=digitalbook
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./database/init-pgvector.sql:/docker-entrypoint-initdb.d/init-pgvector.sql
     networks:
       - ai-textbook-network
     restart: unless-stopped
@@ -106,6 +116,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  backend_node_modules:
 
 networks:
   ai-textbook-network:

@@ -18,17 +18,20 @@ class UserController {
           email: true,
           name: true,
           role: true,
-          profileImage: true,
           createdAt: true,
-          classes: {
+          studentProfile: {
             include: {
-              class: true,
+              enrollments: {
+                include: {
+                  class: true,
+                },
+              },
             },
           },
           _count: {
             select: {
-              textbooks: true,
-              achievements: true,
+              uploadedPDFs: true,
+              activities: true,
             },
           },
         },
@@ -58,7 +61,6 @@ class UserController {
           email: true,
           name: true,
           role: true,
-          profileImage: true,
         },
       });
       
@@ -89,12 +91,13 @@ class UserController {
         .toFile(uploadPath);
       
       const prisma = getDatabase();
-      const user = await prisma.user.update({
-        where: { id: userId },
-        data: { profileImage: `/uploads/avatars/${filename}` },
-      });
+      // TODO: Add profileImage field to User model in schema
+      // const user = await prisma.user.update({
+      //   where: { id: userId },
+      //   data: { profileImage: `/uploads/avatars/${filename}` },
+      // });
       
-      res.json({ profileImage: user.profileImage });
+      res.json({ message: 'Profile image uploaded successfully', filename });
     } catch (error) {
       next(error);
     }
@@ -105,12 +108,13 @@ class UserController {
       const { userId } = req.user!;
       const prisma = getDatabase();
       
-      const achievements = await prisma.achievement.findMany({
-        where: { userId },
-        orderBy: { earnedAt: 'desc' },
-      });
+      // TODO: Implement achievement model in schema
+      // const achievements = await prisma.achievement.findMany({
+      //   where: { userId },
+      //   orderBy: { earnedAt: 'desc' },
+      // });
       
-      res.json(achievements);
+      res.json([]);
     } catch (error) {
       next(error);
     }
@@ -122,30 +126,21 @@ class UserController {
       const prisma = getDatabase();
       
       const studyRecords = await prisma.studyRecord.findMany({
-        where: { userId },
-        include: {
-          textbook: {
-            select: {
-              title: true,
-              subject: true,
-              grade: true,
-            },
-          },
-        },
-        orderBy: { updatedAt: 'desc' },
+        where: { studentId: userId },
+        orderBy: { createdAt: 'desc' },
       });
       
       // Calculate statistics
-      const totalTimeSpent = studyRecords.reduce((sum, record) => sum + record.timeSpent, 0);
-      const completedChapters = studyRecords.filter(record => record.completed).length;
-      const textbooksInProgress = new Set(studyRecords.map(record => record.textbookId)).size;
+      const totalTimeSpent = studyRecords.reduce((sum, record) => sum + (record.duration || 0), 0);
+      const completedChapters = studyRecords.filter(record => record.score && record.score > 0).length;
+      const totalActivities = studyRecords.length;
       
       res.json({
         studyRecords,
         statistics: {
           totalTimeSpent,
           completedChapters,
-          textbooksInProgress,
+          totalActivities,
         },
       });
     } catch (error) {

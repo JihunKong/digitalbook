@@ -58,8 +58,9 @@ export async function socketAuthenticate(socket: SocketWithAuth, next: (err?: Er
       logger.info(`Guest socket authenticated: ${socket.id} - Guest: ${guest.studentName}`);
     } else {
       // Handle regular user authentication
+      const jwtPayload = decoded as JwtPayload;
       const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
+        where: { id: jwtPayload.userId },
         select: { id: true, email: true, role: true },
       });
       

@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: digitalbook_v2
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: digitalbook2024
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-digitalbook2024}
     volumes:
       - postgres_data_local:/var/lib/postgresql/data
     ports:
@@ -40,9 +40,9 @@ services:
       - "4000:4000"
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgresql://postgres:digitalbook2024@postgres:5432/digitalbook_v2
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-digitalbook2024}@postgres:5432/digitalbook_v2
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: digitalbook-v2-local-secret
+      JWT_SECRET: ${JWT_SECRET:-1ba73cfb4fd487c489b46e6ab2fd46cfe9689ebd7169ffd1ba4e1fbbb469d1f49b9007c581ba0cfc00287d918aa004465096a65d3d7e740084ba2f840859978e}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
     depends_on:
       postgres:

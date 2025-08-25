@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { textbookController } from '../controllers/textbook.controller';
-import { authenticate, authorize } from '../middlewares/auth.unified';
+import { authenticate, authorize } from '../middlewares/auth';
 import { validateRequest } from '../middlewares/validator';
 import { textbookSchemas } from '../utils/validation/textbook.schemas';
 

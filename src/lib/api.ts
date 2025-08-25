@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xn--220bu63c.com/api'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
 
 interface ApiResponse<T = any> {
   data?: T
@@ -60,6 +60,7 @@ class ApiClient {
         ...(this.isDemoMode() && { 'X-Demo-Mode': 'true' }),
         ...options.headers,
       },
+      credentials: 'include', // Include cookies for authentication
       ...options,
     }
 
@@ -180,8 +181,11 @@ class ApiClient {
     message: string
     sessionId?: string
     textbookId?: string
+    pdfId?: string
+    pageNumber?: number
+    pageContent?: string
   }) {
-    return this.request('/chat/message', {
+    return this.request('/chat/send', {
       method: 'POST',
       body: JSON.stringify(data),
     })
@@ -189,6 +193,16 @@ class ApiClient {
 
   async getChatHistory(sessionId: string) {
     return this.request(`/chat/history/${sessionId}`)
+  }
+
+  async getChatSuggestions(data: {
+    pageContent?: string
+    currentTopic?: string
+  }) {
+    return this.request('/chat/suggestions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
   }
 
   // Class APIs
@@ -207,6 +221,31 @@ class ApiClient {
     return this.request('/classes/join', {
       method: 'POST',
       body: JSON.stringify(data),
+    })
+  }
+
+  async enrollWithCode(classCode: string) {
+    return this.request('/classes/enroll', {
+      method: 'POST',
+      body: JSON.stringify({ classCode }),
+    })
+  }
+
+  async getMyClasses() {
+    return this.request('/classes/my-classes')
+  }
+
+  async getTeacherClasses() {
+    return this.request('/classes/teacher/classes')
+  }
+
+  async getClassDetails(classId: string) {
+    return this.request(`/classes/${classId}/details`)
+  }
+
+  async leaveClass(classId: string) {
+    return this.request(`/classes/${classId}/leave`, {
+      method: 'POST',
     })
   }
 
@@ -450,6 +489,90 @@ class ApiClient {
     return this.request('/activities/live')
   }
 
+  // PDF APIs
+  async uploadPDF(file: File, classId: string) {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('classId', classId)
+
+    // Debug logging
+    console.log('uploadPDF called with:', {
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      classId,
+      uploadUrl: `${this.baseURL}/pdf/upload`
+    })
+    
+    // Log FormData contents
+    console.log('FormData entries:')
+    for (let [key, value] of formData.entries()) {
+      console.log(`${key}:`, value)
+    }
+
+    try {
+      const token = this.getToken()
+      const response = await fetch(`${this.baseURL}/pdf/upload`, {
+        method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'PDF upload failed')
+      }
+
+      return response.json()
+    } catch (error) {
+      throw error
+    }
+  }
+
+  async getPDFStatus(pdfId: string) {
+    return this.request(`/pdf/status/${pdfId}`)
+  }
+
+  async getPDFContent(pdfId: string, pageNumber?: number) {
+    if (pageNumber) {
+      return this.request(`/pdf/${pdfId}/page/${pageNumber}`)
+    }
+    return this.request(`/pdf/${pdfId}/content`)
+  }
+
+  // Activity APIs
+  async generateActivities(pdfId: string, autoGenerate: boolean = true) {
+    return this.request(`/activities/generate/${pdfId}`, {
+      method: 'POST',
+      body: JSON.stringify({ autoGenerate }),
+    })
+  }
+
+  async getActivities(classId: string) {
+    return this.request(`/activities/class/${classId}`)
+  }
+
+  async getActivity(activityId: string) {
+    return this.request(`/activities/${activityId}`)
+  }
+
+  async getPageActivities(pdfId: string, pageNumber: number) {
+    return this.request(`/activities/pdf/${pdfId}/page/${pageNumber}`)
+  }
+
+  async submitActivityResponse(activityId: string, answers: any) {
+    return this.request(`/activities/${activityId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ answers }),
+    })
+  }
+
+  async getActivityResponses(activityId: string) {
+    return this.request(`/activities/${activityId}/responses`)
+  }
+
   // Multimedia APIs
   async uploadFile(file: File, onProgress?: (progress: number) => void) {
     const formData = new FormData()
@@ -626,6 +749,10 @@ class ApiClient {
 
   async getStudentDashboardData() {
     return this.request('/students/dashboard')
+  }
+
+  async getTeacherDashboardData() {
+    return this.request('/dashboard/teacher')
   }
 
   // Demo Mode APIs

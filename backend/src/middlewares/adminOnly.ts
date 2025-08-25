@@ -2,10 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
-    id: string;
+    userId: string;
     email: string;
-    role: string;
-    isAdmin?: boolean;
+    name: string;
+    role: 'ADMIN' | 'TEACHER';
   };
 }
 
@@ -20,7 +20,7 @@ export const adminOnly = (req: AuthenticatedRequest, res: Response, next: NextFu
     }
 
     // Check if user is admin
-    if (req.user.role !== 'admin' && !req.user.isAdmin) {
+    if (req.user.role !== 'ADMIN') {
       res.status(403).json({
         success: false,
         message: 'Admin access required'

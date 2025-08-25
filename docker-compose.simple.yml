@@ -10,10 +10,10 @@ services:
       - "80:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:digitalbook2024@localhost:5432/digitalbook
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-digitalbook2024}@postgres:5432/digitalbook
       - NEXTAUTH_URL=http://xn--220bu63c.com
-      - NEXTAUTH_SECRET=digitalbook-secret-2024
-      - JWT_SECRET=digitalbook-jwt-secret-2024
+      - NEXTAUTH_SECRET=${SESSION_SECRET:-e5b9a2f59a140980aa89a4e74a09e2d94a43592870354896099593f7e062439f}
+      - JWT_SECRET=${JWT_SECRET:-1ba73cfb4fd487c489b46e6ab2fd46cfe9689ebd7169ffd1ba4e1fbbb469d1f49b9007c581ba0cfc00287d918aa004465096a65d3d7e740084ba2f840859978e}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./uploads:/app/uploads

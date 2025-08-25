@@ -8,97 +8,76 @@ import { io } from '../index';
 class ChatController {
   async sendMessage(req: Request, res: Response, next: NextFunction) {
     try {
-      const { message, sessionId, pageContent, pageNumber, textbookTitle } = req.body;
+      const { message, sessionId, pageContent, pageNumber, textbookTitle, pdfId } = req.body;
       const user = req.user as any;
+      const userId = (req as any).userId;
       const prisma = getDatabase();
       
-      let userMessage;
-      let assistantMessage;
+      let aiResponse;
       
-      // Check if guest user
-      if (user.isGuest) {
-        // Save guest user message
-        // TODO: Implement guestChatMessage model or use alternative storage
-        // userMessage = await prisma.guestChatMessage.create({
-        //   data: {
-        //     guestId: user.guestId,
-        //     role: 'USER',
-        //     content: message,
-        //     context: {
-        //       pageContent,
-        //       pageNumber,
-        //       textbookTitle,
-        //     },
-        //   },
-        // });
-      } else {
-        // Save regular user message
-        // TODO: Implement chatMessage model or use alternative storage
-        // userMessage = await prisma.chatMessage.create({
-        //   data: {
-        //     userId: user.userId,
-        //     sessionId,
-        //     role: 'USER',
-        //     content: message,
-        //     context: {
-        //       pageContent,
-        //       pageNumber,
-        //       textbookTitle,
-        //     },
-        //   },
-        // });
-      }
-      
-      // Get AI response using GPT-4o-mini
-      const aiResponse = await aiService.chatWithTutor(
-        message,
-        {
-          pageContent,
+      // Check if PDF context is available
+      if (pdfId && pageNumber) {
+        // Use enhanced PDF context chat
+        aiResponse = await aiService.chatWithPDFContext(
+          message,
+          pdfId,
           pageNumber,
-          textbookTitle,
-        },
-        sessionId
-      );
-      
-      // Save AI response
-      if (user.isGuest) {
-        // TODO: Implement guestChatMessage model or use alternative storage
-        // assistantMessage = await prisma.guestChatMessage.create({
-        //   data: {
-        //     guestId: user.guestId,
-        //     role: 'ASSISTANT',
-        //     content: aiResponse,
-        //     context: {
-        //       pageContent,
-        //       pageNumber,
-        //       textbookTitle,
-        //     },
-        //   },
-        // });
+          userId
+        );
       } else {
-        // TODO: Implement chatMessage model or use alternative storage
-        // assistantMessage = await prisma.chatMessage.create({
-        //   data: {
-        //     userId: user.userId,
-        //     sessionId,
-        //     role: 'ASSISTANT',
-        //     content: aiResponse,
-        //     context: {
-        //       pageContent,
-        //       pageNumber,
-        //       textbookTitle,
-        //     },
-        //   },
-        // });
+        // Use regular chat with provided context
+        aiResponse = await aiService.chatWithTutor(
+          message,
+          {
+            pageContent,
+            pageNumber,
+            textbookTitle,
+          },
+          sessionId || `user-${userId}`
+        );
       }
       
-      // Emit to socket for real-time update
-      io.to(`session:${sessionId}`).emit('new-message', assistantMessage);
+      // Track the question in database (already done in chatWithPDFContext if PDF context used)
+      if (!pdfId) {
+        await prisma.question.create({
+          data: {
+            studentId: userId,
+            question: message,
+            aiResponse: aiResponse,
+            context: {
+              pageContent: pageContent?.substring(0, 500),
+              pageNumber,
+              textbookTitle,
+            },
+            questionType: 'KNOWLEDGE',
+            aiModel: 'gpt-4o-mini'
+          }
+        });
+      }
       
-      logger.info(`Chat message processed for session: ${sessionId}`);
+      // Emit to socket for real-time update (if socket.io is enabled)
+      try {
+        io.to(`session:${sessionId}`).emit('new-message', {
+          role: 'assistant',
+          content: aiResponse,
+          timestamp: new Date()
+        });
+      } catch (socketError) {
+        logger.warn('Socket.io not available:', socketError);
+      }
+      
+      logger.info(`Chat message processed for user: ${userId}`);
       res.json({
-        userMessage,
-        assistantMessage,
+        userMessage: {
+          role: 'user',
+          content: message,
+          timestamp: new Date()
+        },
+        assistantMessage: {
+          role: 'assistant',
+          content: aiResponse,
+          timestamp: new Date()
+        }
       });
     } catch (error) {
       next(error);

@@ -62,8 +62,8 @@ export function QuestionPanel({ questions, onClose }: QuestionPanelProps) {
       const selectedOption = currentQuestion.options?.find(opt => opt.id === answers[currentQuestion.id])
       isCorrect = selectedOption?.isCorrect || false
     } else {
-      // 단답형이나 서술형은 AI 평가 필요
-      isCorrect = Math.random() > 0.5 // 임시로 랜덤 처리
+      // 단답형이나 서술형은 AI 평가 필요 - TODO: AI 평가 구현
+      isCorrect = false // 평가 시스템이 없을 때는 기본적으로 재검토 필요
     }
 
     setShowResult({

@@ -3,12 +3,66 @@ import { logger } from '../utils/logger';
 import { getRedis } from '../config/redis';
 
 class AIService {
-  private openai: OpenAI;
+  private openai: OpenAI | null;
+  private mockMode: boolean;
   
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    this.mockMode = !process.env.OPENAI_API_KEY;
+    
+    if (this.mockMode) {
+      logger.warn('OpenAI API key not found. Running in mock mode.');
+      this.openai = null;
+    } else {
+      this.openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+    }
+  }
+  
+  // Generate textbook content based on prompt
+  async generateTextbookContent(prompt: string, options?: {
+    grade?: number;
+    subject?: string;
+    length?: 'short' | 'medium' | 'long';
+  }) {
+    try {
+      const systemPrompt = `You are an expert educational content creator specializing in Korean textbooks.
+        Create engaging, age-appropriate educational content that follows Korean curriculum standards.
+        ${options?.grade ? `Target grade level: ${options.grade}` : ''}
+        ${options?.subject ? `Subject: ${options.subject}` : ''}
+        ${options?.length ? `Content length: ${options.length}` : 'medium'}
+        
+        Format the content with clear sections, examples, and activities.
+        Use Korean language appropriately for the grade level.`;
+
+      if (this.mockMode) {
+        return {
+          content: `[Mock Response] 교과서 내용이 생성되었습니다. Grade: ${options?.grade}, Subject: ${options?.subject}`,
+          model: 'mock',
+          usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+        };
+      }
+
+      const response = await this.openai!.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: options?.length === 'long' ? 4000 : 
+                     options?.length === 'short' ? 1000 : 2000,
+      });
+
+      return {
+        content: response.choices[0].message.content,
+        model: 'gpt-4o-mini',
+        usage: response.usage,
+      };
+    } catch (error) {
+      logger.error('Failed to generate textbook content:', error);
+      throw new Error('Failed to generate textbook content');
+    }
   }
   
   // 교사의 요청에 따라 참고 자료를 제공하는 지원 도구로 변경
@@ -180,16 +234,23 @@ ${context.studentNeeds?.join('\n') || '일반적인 학급'}
         { role: 'user', content: message }
       ];
       
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: openAIMessages,
-        max_tokens: 1000,
-        temperature: 0.7,
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1,
-      });
+      let reply: string;
       
-      const reply = response.choices[0].message.content || '';
+      if (this.mockMode) {
+        reply = `안녕하세요! 저는 AI 선생님입니다. "${message}"에 대한 답변입니다: 
+        현재 학습 중인 내용을 잘 이해하고 계시는군요! 계속 열심히 공부하세요. 📚`;
+      } else {
+        const response = await this.openai!.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: openAIMessages,
+          max_tokens: 1000,
+          temperature: 0.7,
+          presence_penalty: 0.1,
+          frequency_penalty: 0.1,
+        });
+        
+        reply = response.choices[0].message.content || '';
+      }
       
       // Update chat history
       history.push(
@@ -208,6 +269,222 @@ ${context.studentNeeds?.join('\n') || '일반적인 학급'}
     } catch (error) {
       logger.error('Failed to chat with tutor:', error);
       throw error;
+    }
+  }
+  
+  // Enhanced chat with PDF context
+  async chatWithPDFContext(
+    message: string,
+    pdfId: string,
+    pageNumber: number,
+    studentId: string
+  ) {
+    try {
+      const redis = getRedis();
+      
+      // Import PDF service dynamically to avoid circular dependency
+      const { default: pdfService } = await import('./pdf.service');
+      
+      // Get current page content
+      const pageContent = await pdfService.getPageContent(pdfId, pageNumber);
+      
+      if (!pageContent) {
+        throw new Error('Page content not found');
+      }
+      
+      // Get page insights from Redis cache
+      const insightsKey = `pdf:${pdfId}:insights:${pageNumber}`;
+      const insightsStr = await redis.get(insightsKey);
+      const insights = insightsStr ? JSON.parse(insightsStr) : null;
+      
+      // Get student's recent page views
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+      
+      const recentViews = await prisma.pageView.findMany({
+        where: {
+          studentId: studentId,
+          textbookId: pdfId
+        },
+        orderBy: {
+          viewedAt: 'desc'
+        },
+        take: 5
+      });
+      
+      // Build context-aware prompt
+      const systemPrompt = `
+당신은 5학년 국어 선생님입니다. 학생이 현재 PDF 교과서를 보며 학습 중입니다.
+
+현재 학습 페이지: ${pageNumber}
+페이지 내용:
+${pageContent.text}
+
+${insights ? `핵심 개념: ${JSON.stringify(insights)}` : ''}
+
+학생의 최근 학습 진도: ${recentViews.map(v => `${v.pageNumber}페이지`).join(', ')}
+
+답변 지침:
+1. 현재 페이지 내용을 기반으로 답변하세요
+2. 학생이 이해하기 쉬운 5학년 수준의 언어를 사용하세요
+3. 구체적인 예시를 페이지 내용에서 찾아 설명하세요
+4. 격려하고 친근하게 대화하세요
+5. 학습 내용과 관련된 추가 질문을 유도하세요
+`;
+      
+      const sessionId = `pdf-${pdfId}-${studentId}`;
+      const cacheKey = `chat:${sessionId}:history`;
+      
+      // Get chat history
+      const historyStr = await redis.get(cacheKey);
+      const history = historyStr ? JSON.parse(historyStr) : [];
+      
+      // Create messages for OpenAI
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history.slice(-10).map((msg: any) => ({
+          role: msg.role === 'assistant' ? 'assistant' : 'user',
+          content: msg.content
+        })),
+        { role: 'user', content: message }
+      ];
+      
+      let reply: string;
+      
+      if (this.mockMode) {
+        reply = `안녕하세요! ${pageNumber}페이지에 대한 질문이군요. "${message}"
+        
+        이 페이지에서는 우리말의 아름다움과 한글의 과학적 우수성에 대해 배우고 있습니다.
+        특히 존댓말과 반말의 차이를 이해하는 것이 중요해요.
+        
+        더 궁금한 점이 있으면 언제든지 물어보세요! 😊`;
+      } else {
+        const response = await this.openai!.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: messages,
+          max_tokens: 1500,
+          temperature: 0.7,
+          presence_penalty: 0.1,
+          frequency_penalty: 0.1,
+        });
+        
+        reply = response.choices[0].message.content || '';
+      }
+      
+      // Update history
+      history.push(
+        { role: 'user', content: message },
+        { role: 'assistant', content: reply }
+      );
+      
+      if (history.length > 20) {
+        history.splice(0, history.length - 20);
+      }
+      
+      await redis.setex(cacheKey, 3600, JSON.stringify(history));
+      
+      // Save question to database for teacher review
+      await prisma.question.create({
+        data: {
+          studentId: studentId,
+          question: message,
+          aiResponse: reply,
+          context: {
+            pdfId,
+            pageNumber,
+            pageContent: pageContent.text.substring(0, 500) // Save first 500 chars
+          },
+          questionType: this.classifyQuestionType(message),
+          aiModel: 'gpt-4o-mini'
+        }
+      });
+      
+      await prisma.$disconnect();
+      
+      return reply;
+    } catch (error) {
+      logger.error('Failed to chat with PDF context:', error);
+      throw error;
+    }
+  }
+  
+  // Helper method to classify question types
+  private classifyQuestionType(question: string) {
+    const lowerQuestion = question.toLowerCase();
+    
+    if (lowerQuestion.includes('뜻') || lowerQuestion.includes('의미')) {
+      return 'KNOWLEDGE';
+    } else if (lowerQuestion.includes('왜') || lowerQuestion.includes('이유')) {
+      return 'REASONING';
+    } else if (lowerQuestion.includes('예시') || lowerQuestion.includes('예를')) {
+      return 'CREATIVE';
+    } else if (lowerQuestion.includes('어떻게') || lowerQuestion.includes('방법')) {
+      return 'REASONING';
+    } else if (lowerQuestion.includes('생각') || lowerQuestion.includes('의견')) {
+      return 'CRITICAL';
+    } else {
+      return 'KNOWLEDGE';
+    }
+  }
+  
+  // Generate page insights for better context
+  async generatePageInsights(pageText: string, grade: string, subject: string) {
+    try {
+      const prompt = `
+다음 교과서 페이지를 분석하여 핵심 정보를 추출해주세요.
+
+페이지 내용:
+${pageText.substring(0, 2000)}
+
+다음 JSON 형식으로 응답해주세요:
+{
+  "mainTopic": "페이지의 주제",
+  "keyWords": ["핵심어1", "핵심어2", "핵심어3"],
+  "learningObjectives": ["학습목표1", "학습목표2"],
+  "importantConcepts": ["중요개념1", "중요개념2"],
+  "difficulty": "쉬움/보통/어려움"
+}
+`;
+      
+      if (this.mockMode) {
+        return {
+          mainTopic: '우리말의 아름다움',
+          keyWords: ['한글', '존댓말', '반말', '세종대왕'],
+          learningObjectives: ['우리말의 특징 이해하기', '높임법 사용하기'],
+          importantConcepts: ['언어의 과학성', '존중의 표현'],
+          difficulty: '보통'
+        };
+      }
+
+      const response = await this.openai!.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { 
+            role: 'system', 
+            content: `당신은 ${grade}학년 ${subject} 교육 전문가입니다.`
+          },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 1000,
+        temperature: 0.5,
+      });
+      
+      const content = response.choices[0].message.content || '{}';
+      
+      try {
+        return JSON.parse(content);
+      } catch {
+        return {
+          mainTopic: '페이지 분석 중',
+          keyWords: [],
+          learningObjectives: [],
+          importantConcepts: [],
+          difficulty: '보통'
+        };
+      }
+    } catch (error) {
+      logger.error('Failed to generate page insights:', error);
+      return null;
     }
   }
   

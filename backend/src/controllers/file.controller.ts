@@ -28,17 +28,19 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   const allowedMimes = [
     'application/pdf',
     'text/plain',
+    'text/markdown',
+    'text/x-markdown',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword'
   ];
   
-  const allowedExtensions = ['.pdf', '.txt', '.docx', '.doc'];
+  const allowedExtensions = ['.pdf', '.txt', '.md', '.markdown', '.docx', '.doc'];
   const ext = path.extname(file.originalname).toLowerCase();
   
   if (allowedMimes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only PDF, TXT, and DOCX files are allowed.'));
+    cb(new Error('Invalid file type. Only PDF, TXT, MD, and DOCX files are allowed.'));
   }
 };
 
@@ -57,8 +59,9 @@ class FileController {
     const ext = path.extname(filePath).toLowerCase();
     
     try {
-      // Handle text files
-      if (mimeType === 'text/plain' || ext === '.txt') {
+      // Handle text files (including markdown)
+      if (mimeType === 'text/plain' || mimeType === 'text/markdown' || mimeType === 'text/x-markdown' || 
+          ext === '.txt' || ext === '.md' || ext === '.markdown') {
         const content = await fs.readFile(filePath, 'utf-8');
         return content;
       }
@@ -91,7 +94,7 @@ class FileController {
   }
 
   // Upload and process document file
-  async uploadDocument(req: Request, res: Response, next: NextFunction) {
+  uploadDocument = async (req: Request, res: Response, next: NextFunction) => {
     const prisma = getDatabase();
     
     try {
@@ -113,7 +116,7 @@ class FileController {
           mimeType: file.mimetype,
           size: file.size,
           path: file.path,
-          uploadedBy: userId,
+          uploadedBy: userId || 'anonymous',
           extractedText: extractedText.substring(0, 10000), // Store first 10000 chars
         },
       });
@@ -159,7 +162,7 @@ class FileController {
   }
 
   // Upload multiple files
-  async uploadMultipleDocuments(req: Request, res: Response, next: NextFunction) {
+  uploadMultipleDocuments = async (req: Request, res: Response, next: NextFunction) => {
     const prisma = getDatabase();
     
     try {
@@ -242,7 +245,7 @@ class FileController {
   }
 
   // Get uploaded file by ID
-  async getFile(req: Request, res: Response, next: NextFunction) {
+  getFile = async (req: Request, res: Response, next: NextFunction) => {
     const prisma = getDatabase();
     
     try {
@@ -275,8 +278,49 @@ class FileController {
     }
   }
 
+  // Serve uploaded file content
+  serveFile = async (req: Request, res: Response, next: NextFunction) => {
+    const prisma = getDatabase();
+    
+    try {
+      const { fileId } = req.params;
+      const userId = (req as any).userId;
+      
+      const file = await prisma.file.findFirst({
+        where: {
+          id: fileId,
+          uploadedBy: userId,
+        },
+      });
+      
+      if (!file) {
+        throw new AppError('File not found', 404);
+      }
+
+      // Check if file exists on disk
+      try {
+        await fs.access(file.path);
+      } catch (error) {
+        throw new AppError('File not found on disk', 404);
+      }
+      
+      // Set appropriate headers
+      res.setHeader('Content-Type', file.mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`);
+      res.setHeader('Content-Length', file.size.toString());
+      
+      // Stream the file
+      const fileStream = require('fs').createReadStream(file.path);
+      fileStream.pipe(res);
+      
+      logger.info(`File served: ${file.originalName} by user ${userId}`);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Delete uploaded file
-  async deleteFile(req: Request, res: Response, next: NextFunction) {
+  deleteFile = async (req: Request, res: Response, next: NextFunction) => {
     const prisma = getDatabase();
     
     try {

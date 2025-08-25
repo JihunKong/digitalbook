@@ -46,22 +46,30 @@ export async function authenticateFlexible(
         throw new AppError('Invalid guest session', 401);
       }
       
-      req.user = decoded;
+      // For guest access, we don't set req.user since it's not a regular user
+      // The guest information is available through the decoded token
+      (req as any).guestToken = decoded;
     } else {
       // Regular user authentication
       const user = await prisma.user.findUnique({
         where: { id: (decoded as JwtPayload).userId },
-        select: { id: true, email: true, role: true },
+        select: { id: true, email: true, name: true, role: true },
       });
       
       if (!user) {
         throw new AppError('User not found', 401);
       }
       
+      // Only allow ADMIN and TEACHER roles for regular user auth
+      if (user.role !== 'ADMIN' && user.role !== 'TEACHER') {
+        throw new AppError('Unauthorized role for this endpoint', 403);
+      }
+      
       req.user = {
         userId: user.id,
         email: user.email,
-        role: user.role,
+        name: user.name || user.email,
+        role: user.role as 'ADMIN' | 'TEACHER',
       };
     }
     

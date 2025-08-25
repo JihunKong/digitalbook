@@ -15,3 +15,5 @@ export const requestLogger = expressWinston.logger({
     return req.url === '/health' || req.url === '/ready';
   },
 });
+// Alias for backward compatibility
+export const loggerMiddleware = requestLogger;

@@ -33,18 +33,63 @@ yarn-error.log*
 .env.development
 backend/.env
 
-# Security
-*.key
+# ===== CRITICAL SECURITY FILES - NEVER COMMIT =====
+
+# SSH Keys and Certificates
 *.pem
+*.key
 *.p12
+*.jks
 *.crt
+*.csr
 *.cer
+korean-digital-book.pem
 certificates/
 ssl/
 
-# Test accounts (sensitive)
+# Session Tokens and Cookies - CRITICAL
+cookies*.txt
+*cookies*.txt
+csrf_cookies.txt
+*_cookies.txt
+frontend_cookies.txt
+login_cookies.txt
+test_cookies.txt
+
+# Test accounts and credentials
 TEST_ACCOUNTS.md
 test-credentials.json
+create-test-*.js
+create-debug-*.js
+update-*.js
+
+# Deployment Scripts with Embedded Credentials
+deploy-production.sh
+scripts/deploy*.sh
+scripts/aws-*.sh
+**/deploy*.sh
+
+# Security Reports and Internal Documentation
+SECURITY_AUDIT_REPORT*.md
+PROJECT_PLAN*.md
+IMPLEMENTATION_PLAN*.md
+CRITICAL_SECURITY_FIXES.md
+**/UX_SPECIFICATIONS*.md
+
+# Database Exports and Backups with Sensitive Data
+*.sql
+database/
+backups/
+
+# Debug and Test Artifacts
+debug-*.js
+debug-*.png
+test-*.js
+test-*.sh
+comprehensive-*.js
+*.debug.log
+trace/
+screenshots/
 
 # vercel
 .vercel

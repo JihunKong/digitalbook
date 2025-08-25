@@ -40,45 +40,23 @@ export default function StudentDashboard() {
   const [showDemo, setShowDemo] = useState(false)
   const router = useRouter()
   
-  const [stats] = useState<StudentStats>({
-    totalPoints: 1250,
-    streak: 7,
-    completedLessons: 23,
-    quizScore: 92,
-    level: 5,
-    experience: 450,
-    nextLevelExp: 600,
-    achievements: [
-      {
-        id: '1',
-        title: '첫 걸음',
-        description: '첫 번째 수업 완료',
-        icon: Trophy,
-        unlocked: true,
-        date: '2024-01-10'
-      },
-      {
-        id: '2',
-        title: '일주일 연속',
-        description: '7일 연속 학습',
-        icon: Flame,
-        unlocked: true,
-        date: '2024-01-15'
-      },
-      {
-        id: '3',
-        title: 'AI 마스터',
-        description: 'AI 튜터 100회 사용',
-        icon: Sparkles,
-        unlocked: false
-      }
-    ]
+  const [stats, setStats] = useState<StudentStats>({
+    totalPoints: 0,
+    streak: 0,
+    completedLessons: 0,
+    quizScore: 0,
+    level: 1,
+    experience: 0,
+    nextLevelExp: 100,
+    achievements: []
   })
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user')
     if (storedUser) {
       setUser(JSON.parse(storedUser))
+      fetchStudentStats()
     } else {
       // Check if demo mode
       const urlParams = new URLSearchParams(window.location.search)
@@ -86,11 +64,30 @@ export default function StudentDashboard() {
         setUser({ name: '김민수', role: 'STUDENT' })
         localStorage.setItem('isStudentDemo', 'true')
         setShowDemo(true)
+        setIsLoading(false)
       } else {
         router.push('/auth/login')
       }
     }
   }, [])
+
+  const fetchStudentStats = async () => {
+    try {
+      setIsLoading(true)
+      // TODO: Implement API call to get student stats
+      // const response = await apiClient.getStudentStats()
+      // if (response.data) {
+      //   setStats(response.data)
+      // }
+      
+      // For now, keep minimal stats
+      setStats(prev => ({ ...prev }))
+    } catch (error) {
+      console.error('Failed to fetch student stats:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('token')

@@ -13,8 +13,17 @@ class TextbookController {
       
       let textbooks;
       if (role === 'TEACHER') {
+        // Get teacher profile first
+        const teacherProfile = await prisma.teacherProfile.findUnique({
+          where: { userId }
+        });
+        
+        if (!teacherProfile) {
+          return res.json([]);
+        }
+        
         textbooks = await prisma.textbook.findMany({
-          where: { teacherId: userId },
+          where: { authorId: teacherProfile.id },
           include: {
             classes: {
               include: {
@@ -40,11 +49,15 @@ class TextbookController {
                 classId: { in: classIds },
               },
             },
-            isPublished: true,
+            isPublic: true,
           },
           include: {
-            teacher: {
-              select: { name: true },
+            author: {
+              select: { 
+                user: {
+                  select: { name: true }
+                }
+              },
             },
           },
           orderBy: { createdAt: 'desc' },
@@ -60,26 +73,27 @@ class TextbookController {
   async getTextbook(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { userId } = req.user!;
+      const userId = req.user!.userId;
       const prisma = getDatabase();
       
       const textbook = await prisma.textbook.findUnique({
         where: { id },
         include: {
-          teacher: {
-            select: { name: true, email: true },
+          author: {
+            include: {
+              user: {
+                select: { name: true, email: true }
+              }
+            }
           },
-          studyRecords: {
-            where: { userId },
-            orderBy: { updatedAt: 'desc' },
-            take: 1,
+          pages: {
+            orderBy: { pageNumber: 'asc' }
           },
-          highlights: {
-            where: { userId },
-          },
-          bookmarks: {
-            where: { userId },
-          },
+          classes: {
+            include: {
+              class: true
+            }
+          }
         },
       });
       
@@ -95,18 +109,38 @@ class TextbookController {
   
   async createTextbook(req: Request, res: Response, next: NextFunction) {
     try {
-      const { title, subject, grade, aiSettings } = req.body;
-      const { userId } = req.user!;
+      const { title, description, content, metadata, aiGenerated, aiModel, aiPrompt } = req.body;
+      const userId = req.user!.userId;
       const prisma = getDatabase();
+      
+      // Get or create teacher profile
+      let teacherProfile = await prisma.teacherProfile.findUnique({
+        where: { userId }
+      });
+      
+      if (!teacherProfile) {
+        teacherProfile = await prisma.teacherProfile.create({
+          data: {
+            userId,
+            school: '',
+            subject: '',
+            grade: '',
+            bio: ''
+          }
+        });
+      }
       
       const textbook = await prisma.textbook.create({
         data: {
           title,
-          subject,
-          grade,
-          teacherId: userId,
-          content: { chapters: [] },
-          aiSettings,
+          description: description || '',
+          authorId: teacherProfile.id,
+          content: content || {},
+          metadata: metadata || {},
+          aiGenerated: aiGenerated || false,
+          aiModel: aiModel || null,
+          aiPrompt: aiPrompt || null,
+          isPublic: false
         },
       });
       
@@ -120,7 +154,7 @@ class TextbookController {
   async updateTextbook(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { userId } = req.user!;
+      const userId = req.user!.userId;
       const prisma = getDatabase();
       
       const textbook = await prisma.textbook.findUnique({
@@ -131,7 +165,12 @@ class TextbookController {
         throw new AppError('Textbook not found', 404);
       }
       
-      if (textbook.teacherId !== userId) {
+      // Check if user owns this textbook via TeacherProfile
+      const teacherProfile = await prisma.teacherProfile.findUnique({
+        where: { userId }
+      });
+      
+      if (!teacherProfile || textbook.authorId !== teacherProfile.id) {
         throw new AppError('Unauthorized', 403);
       }
       
@@ -149,7 +188,7 @@ class TextbookController {
   async deleteTextbook(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { userId } = req.user!;
+      const userId = req.user!.userId;
       const prisma = getDatabase();
       
       const textbook = await prisma.textbook.findUnique({
@@ -160,7 +199,12 @@ class TextbookController {
         throw new AppError('Textbook not found', 404);
       }
       
-      if (textbook.teacherId !== userId) {
+      // Check if user owns this textbook via TeacherProfile
+      const teacherProfile = await prisma.teacherProfile.findUnique({
+        where: { userId }
+      });
+      
+      if (!teacherProfile || textbook.authorId !== teacherProfile.id) {
         throw new AppError('Unauthorized', 403);
       }
       
@@ -178,7 +222,7 @@ class TextbookController {
     try {
       const { id } = req.params;
       const { text, settings } = req.body;
-      const { userId } = req.user!;
+      const userId = req.user!.userId;
       const prisma = getDatabase();
       
       const textbook = await prisma.textbook.findUnique({
@@ -189,7 +233,12 @@ class TextbookController {
         throw new AppError('Textbook not found', 404);
       }
       
-      if (textbook.teacherId !== userId) {
+      // Check if user owns this textbook via TeacherProfile
+      const teacherProfile = await prisma.teacherProfile.findUnique({
+        where: { userId }
+      });
+      
+      if (!teacherProfile || textbook.authorId !== teacherProfile.id) {
         throw new AppError('Unauthorized', 403);
       }
       
@@ -200,7 +249,7 @@ class TextbookController {
       );
       
       // Parse and structure the generated content
-      const structuredContent = JSON.parse(generatedContent);
+      const structuredContent = JSON.parse(generatedContent.content);
       
       // Update textbook with generated content
       const updated = await prisma.textbook.update({
@@ -220,7 +269,7 @@ class TextbookController {
   async publishTextbook(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { userId } = req.user!;
+      const userId = req.user!.userId;
       const prisma = getDatabase();
       
       const textbook = await prisma.textbook.findUnique({
@@ -231,14 +280,19 @@ class TextbookController {
         throw new AppError('Textbook not found', 404);
       }
       
-      if (textbook.teacherId !== userId) {
+      // Check if user owns this textbook via TeacherProfile
+      const teacherProfile = await prisma.teacherProfile.findUnique({
+        where: { userId }
+      });
+      
+      if (!teacherProfile || textbook.authorId !== teacherProfile.id) {
         throw new AppError('Unauthorized', 403);
       }
       
       const updated = await prisma.textbook.update({
         where: { id },
         data: {
-          isPublished: true,
+          isPublic: true,
         },
       });
       
@@ -265,7 +319,7 @@ class TextbookController {
       
       const generatedContent = await aiService.generateTextbookContent(
         type === 'summary' ? prompt : context,
-        { grade: 3, difficulty: 'medium', includeExercises: false, includeImages: false }
+        { grade: 3 }
       );
       
       res.json({ content: generatedContent });
@@ -305,10 +359,10 @@ JSON 형식으로 반환:
       
       const response = await aiService.generateTextbookContent(
         prompt,
-        { grade: 3, difficulty, includeExercises: true, includeImages: false }
+        { grade: 3 }
       );
       
-      const questions = JSON.parse(response);
+      const questions = JSON.parse(response.content);
       res.json({ questions });
     } catch (error) {
       next(error);
@@ -318,7 +372,7 @@ JSON 형식으로 반환:
   async trainAI(req: Request, res: Response, next: NextFunction) {
     try {
       const { textbookId, trainingData, content } = req.body;
-      const { userId } = req.user!;
+      const userId = req.user!.userId;
       const prisma = getDatabase();
       
       // Verify ownership
@@ -326,7 +380,7 @@ JSON 형식으로 반환:
         where: { id: textbookId },
       });
       
-      if (!textbook || textbook.teacherId !== userId) {
+      if (!textbook || textbook.authorId !== userId) {
         throw new AppError('Unauthorized', 403);
       }
       
@@ -355,7 +409,7 @@ JSON 형식으로 반환:
     try {
       const { id } = req.params;
       const { isPublic } = req.body;
-      const { userId } = req.user!;
+      const userId = req.user!.userId;
       const prisma = getDatabase();
       
       const textbook = await prisma.textbook.findUnique({
@@ -366,7 +420,12 @@ JSON 형식으로 반환:
         throw new AppError('Textbook not found', 404);
       }
       
-      if (textbook.teacherId !== userId) {
+      // Check if user owns this textbook via TeacherProfile
+      const teacherProfile = await prisma.teacherProfile.findUnique({
+        where: { userId }
+      });
+      
+      if (!teacherProfile || textbook.authorId !== teacherProfile.id) {
         throw new AppError('Unauthorized', 403);
       }
       
@@ -388,7 +447,7 @@ JSON 형식으로 반환:
   async generateAccessCode(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { userId } = req.user!;
+      const userId = req.user!.userId;
       const prisma = getDatabase();
       
       const textbook = await prisma.textbook.findUnique({
@@ -399,22 +458,22 @@ JSON 형식으로 반환:
         throw new AppError('Textbook not found', 404);
       }
       
-      if (textbook.teacherId !== userId) {
+      // Check if user owns this textbook via TeacherProfile
+      const teacherProfile = await prisma.teacherProfile.findUnique({
+        where: { userId }
+      });
+      
+      if (!teacherProfile || textbook.authorId !== teacherProfile.id) {
         throw new AppError('Unauthorized', 403);
       }
       
-      // 6자리 접근 코드 생성
+      // Note: accessCode field doesn't exist in Textbook schema
+      // This feature may need to be implemented differently
+      // For now, return a generated code without storing it
       const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       
-      const updated = await prisma.textbook.update({
-        where: { id },
-        data: {
-          accessCode,
-        },
-      });
-      
       logger.info(`Access code generated for textbook: ${id}`);
-      res.json({ accessCode: updated.accessCode });
+      res.json({ accessCode });
     } catch (error) {
       next(error);
     }
@@ -427,30 +486,33 @@ JSON 형식으로 반환:
       const prisma = getDatabase();
       
       const where: any = {
-        isPublic: true,
-        isPublished: true,
+        isPublic: true
       };
       
       if (subject) {
-        where.subject = subject as string;
+        where.metadata = { ...where.metadata, subject: subject as string };
       }
       
       if (grade) {
-        where.grade = parseInt(grade as string);
+        where.metadata = { ...where.metadata, grade: grade as string };
       }
       
       if (search) {
         where.OR = [
           { title: { contains: search as string, mode: 'insensitive' } },
-          { teacher: { name: { contains: search as string, mode: 'insensitive' } } },
+          { author: { user: { name: { contains: search as string, mode: 'insensitive' } } } },
         ];
       }
       
       const textbooks = await prisma.textbook.findMany({
         where,
         include: {
-          teacher: {
-            select: { name: true },
+          author: {
+            include: {
+              user: {
+                select: { name: true }
+              }
+            }
           },
         },
         orderBy: [

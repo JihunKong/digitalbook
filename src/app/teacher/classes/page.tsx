@@ -73,7 +73,36 @@ export default function TeacherClassesPage() {
     const loadClasses = async () => {
       setIsLoading(true)
       
-      // Mock data for demo
+      try {
+        // Load real classes from API
+        const response = await apiClient.getClasses()
+        if (response?.data) {
+          setClasses(response.data)
+        } else {
+          setClasses([])
+        }
+        
+        // Load students data
+        const studentsResponse = await apiClient.getStudents()
+        if (studentsResponse?.data) {
+          setStudents(studentsResponse.data)
+        } else {
+          setStudents([])
+        }
+      } catch (error) {
+        console.error('Failed to load data:', error)
+        setClasses([])
+        setStudents([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadClasses()
+  }, [])
+
+  // Comment out mock data - remove this section later
+  /*
       const mockClasses: Class[] = [
         {
           id: 'class1',
@@ -183,15 +212,7 @@ export default function TeacherClassesPage() {
           status: 'active'
         }
       ]
-      
-      setClasses(mockClasses)
-      setStudents(mockStudents)
-      setSelectedClass(mockClasses[0])
-      setIsLoading(false)
-    }
-
-    loadClasses()
-  }, [])
+      */
 
   const activeClasses = classes.filter(c => c.status === 'active')
   const archivedClasses = classes.filter(c => c.status === 'archived')

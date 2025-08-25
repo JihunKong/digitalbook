@@ -90,11 +90,16 @@ export function useTTS(): UseTTSReturn {
       autoPlay = true
     } = options;
 
+    // Use backend API endpoint directly
+    const baseUrl = window.location.hostname === 'localhost' 
+      ? 'http://localhost:4000/api' 
+      : 'https://xn--220bu63c.com/api';
+
     // First try OpenAI API for better quality
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await fetch('/api/tts/generate', {
+      const response = await fetch(`${baseUrl}/tts/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -116,7 +121,7 @@ export function useTTS(): UseTTSReturn {
 
       const data = await response.json();
       
-      if (!data.data?.audioUrl) {
+      if (!data.audioUrl) {
         // API failed but don't fallback to browser TTS
         setError('OpenAI TTS를 사용할 수 없습니다. API 키를 확인해주세요.');
         toast({
@@ -133,11 +138,26 @@ export function useTTS(): UseTTSReturn {
         URL.revokeObjectURL(audioUrl);
       }
 
+      // Build full audio URL
+      let fullAudioUrl: string;
+      if (data.audioUrl.startsWith('http')) {
+        fullAudioUrl = data.audioUrl;
+      } else if (data.audioUrl.startsWith('/api')) {
+        // If audioUrl already includes /api, use the base domain without /api
+        const baseDomain = window.location.hostname === 'localhost' 
+          ? 'http://localhost:4000' 
+          : 'https://xn--220bu63c.com';
+        fullAudioUrl = `${baseDomain}${data.audioUrl}`;
+      } else {
+        fullAudioUrl = `${baseUrl}${data.audioUrl}`;
+      }
+      
       // Set new audio URL
-      setAudioUrl(data.data.audioUrl);
+      setAudioUrl(fullAudioUrl);
+      console.log('Audio URL:', fullAudioUrl); // Debug log
 
       // Create and configure audio element
-      const audio = new Audio(data.data.audioUrl);
+      const audio = new Audio(fullAudioUrl);
       audioRef.current = audio;
 
       // Set up event listeners

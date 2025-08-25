@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { guestController } from '../controllers/guest.controller';
-import { authenticateGuest } from '../middlewares/auth.unified';
+import { authenticateGuest } from '../middlewares/auth';
 import { validate } from '../middlewares/validation';
 import Joi from 'joi';
 

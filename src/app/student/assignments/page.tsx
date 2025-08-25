@@ -102,70 +102,8 @@ export default function StudentAssignmentsPage() {
     loadAssignments()
   }, [])
 
-  // 임시 데이터 (실제 API에 데이터가 없을 경우를 대비)
-  const mockAssignments: Assignment[] = [
-    {
-      id: '1',
-      title: '나의 꿈 에세이',
-      type: 'WRITING' as const,
-      dueDate: '2024-03-25',
-      description: '자신의 꿈과 그 꿈을 이루기 위한 계획을 500자 이상으로 작성하세요.',
-      classId: '1',
-      points: 100,
-      createdAt: '2024-03-20',
-      updatedAt: '2024-03-20',
-      class: { id: '1', name: '1학년 1반' },
-      submissions: [{ id: '1', status: 'DRAFT' }]
-    },
-    {
-      id: '2',
-      title: '문학 작품 분석',
-      type: 'WRITING' as const,
-      dueDate: '2024-03-23',
-      description: '수업 시간에 배운 시 중 하나를 선택하여 분석해보세요.',
-      classId: '1',
-      points: 100,
-      createdAt: '2024-03-18',
-      updatedAt: '2024-03-18',
-      class: { id: '1', name: '1학년 1반' },
-      submissions: [{ id: '2', status: 'SUBMITTED', submittedAt: '2024-03-22' }]
-    },
-    {
-      id: '3',
-      title: '단원평가 - 문법',
-      type: 'QUIZ',
-      dueDate: '2024-03-20',
-      description: '품사와 문장 성분에 대한 이해도를 평가합니다.',
-      classId: '1',
-      points: 100,
-      createdAt: '2024-03-15',
-      updatedAt: '2024-03-20',
-      class: { id: '1', name: '1학년 1반' },
-      submissions: [{ 
-        id: '3', 
-        status: 'GRADED', 
-        grade: 85, 
-        feedback: '전반적으로 잘 이해하고 있습니다. 부사어 부분을 조금 더 복습해보세요.',
-        submittedAt: '2024-03-19'
-      }]
-    },
-    {
-      id: '4',
-      title: '모둠 프로젝트 - 환경보호',
-      type: 'PROJECT',
-      dueDate: '2024-03-30',
-      description: '환경보호를 주제로 한 캠페인 자료를 제작하세요. (모둠별 진행)',
-      classId: '1',
-      points: 100,
-      createdAt: '2024-03-10',
-      updatedAt: '2024-03-10',
-      class: { id: '1', name: '1학년 1반' },
-      submissions: [{ id: '4', status: 'DRAFT' }]
-    }
-  ]
-
-  // API에서 데이터가 없으면 임시 데이터 사용
-  const displayAssignments = assignments.length > 0 ? assignments : mockAssignments
+  // Use only real assignments from API
+  const displayAssignments = assignments
 
   const getSubmissionStatus = (assignment: Assignment) => {
     if (!assignment.submissions || assignment.submissions.length === 0) {

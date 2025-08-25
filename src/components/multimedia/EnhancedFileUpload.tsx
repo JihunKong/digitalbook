@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -50,6 +50,14 @@ export function EnhancedFileUpload({
   const [files, setFiles] = useState<UploadFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Keep reference to the latest onUploadComplete callback to avoid stale closures
+  const onUploadCompleteRef = useRef(onUploadComplete)
+  
+  // Update ref whenever the callback changes
+  useEffect(() => {
+    onUploadCompleteRef.current = onUploadComplete
+  }, [onUploadComplete])
 
   const getFileIcon = (file: File) => {
     const type = file.type
@@ -111,6 +119,7 @@ export function EnhancedFileUpload({
   }
 
   const handleFiles = useCallback((fileList: FileList) => {
+    console.log('🔥 handleFiles called with', fileList.length, 'files');
     const newFiles: UploadFile[] = []
     
     for (let i = 0; i < fileList.length; i++) {
@@ -138,15 +147,18 @@ export function EnhancedFileUpload({
     setFiles(prev => [...prev, ...newFiles])
 
     // Start uploading valid files
+    console.log('🔥 Starting uploads for', newFiles.length, 'files');
     newFiles.forEach(uploadFile => {
       if (uploadFile.status === 'pending') {
+        console.log('🔥 Starting upload for file:', uploadFile.file.name);
         uploadFile.status = 'uploading'
         simulateUpload(uploadFile)
       }
     })
   }, [files.length, maxFiles])
 
-  const simulateUpload = async (uploadFile: UploadFile) => {
+  const simulateUpload = useCallback(async (uploadFile: UploadFile) => {
+    console.log('🔥 simulateUpload started for:', uploadFile.file.name);
     try {
       // Update file status
       setFiles(prev => prev.map(f => 
@@ -157,7 +169,7 @@ export function EnhancedFileUpload({
 
       // Create FormData for file upload
       const formData = new FormData()
-      formData.append('document', uploadFile.file)
+      formData.append('file', uploadFile.file)
 
       // Upload file to server with progress tracking
       const xhr = new XMLHttpRequest()
@@ -177,31 +189,45 @@ export function EnhancedFileUpload({
       // Handle upload completion
       const uploadPromise = new Promise<any>((resolve, reject) => {
         xhr.onload = function() {
+          console.log('🔥 XHR onload triggered, status:', xhr.status);
+          console.log('🔥 XHR response text:', xhr.responseText);
           if (xhr.status === 200) {
-            const response = JSON.parse(xhr.responseText)
-            resolve(response)
+            try {
+              const response = JSON.parse(xhr.responseText)
+              console.log('🔥 XHR parsed response:', response);
+              resolve(response)
+            } catch (parseError) {
+              console.log('🔥 XHR JSON parse error:', parseError);
+              reject(new Error('Failed to parse response'))
+            }
           } else {
+            console.log('🔥 XHR failed with status:', xhr.status);
             reject(new Error(`Upload failed with status ${xhr.status}`))
           }
         }
         
-        xhr.onerror = () => reject(new Error('Network error'))
-        xhr.onabort = () => reject(new Error('Upload cancelled'))
+        xhr.onerror = () => {
+          console.log('🔥 XHR network error');
+          reject(new Error('Network error'))
+        }
+        xhr.onabort = () => {
+          console.log('🔥 XHR upload cancelled');
+          reject(new Error('Upload cancelled'))
+        }
       })
 
-      // Send request
+      // Send request to Next.js API route (which forwards to backend)
       xhr.open('POST', '/api/files/upload')
       
-      // Add auth token if available
-      const token = localStorage.getItem('token')
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-      }
+      // Use cookies for authentication (httpOnly cookies)
+      xhr.withCredentials = true
       
       xhr.send(formData)
       
       // Wait for upload to complete
+      console.log('🔥 Awaiting upload promise...');
       const response = await uploadPromise
+      console.log('🔥 Upload promise resolved, response:', response);
       
       setFiles(prev => prev.map(f => 
         f.id === uploadFile.id 
@@ -214,18 +240,37 @@ export function EnhancedFileUpload({
           : f
       ))
 
+      console.log('🔥 Checking onUploadComplete callback, exists:', !!onUploadCompleteRef.current);
       // Notify parent component with actual response data
-      if (onUploadComplete) {
-        const completedFiles = files
-          .filter(f => f.status === 'completed' || f.id === uploadFile.id)
-          .map(f => ({
-            id: f.id,
-            url: f.url || response.file?.id || '',
-            type: f.file.type,
-            name: f.file.name,
-            extractedText: response.content?.text
-          }))
-        onUploadComplete(completedFiles)
+      if (onUploadCompleteRef.current) {
+        // Use the current upload file directly to avoid state timing issues
+        const fileId = response.file?.id;
+        // For file serving, connect directly to backend
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+        const fileUrl = fileId 
+          ? `${backendUrl}/api/files/${fileId}/content`
+          : URL.createObjectURL(uploadFile.file);
+          
+        const completedFile = {
+          id: uploadFile.id,
+          url: fileUrl,
+          type: uploadFile.file.type,
+          name: uploadFile.file.name,
+          extractedText: response.content?.text
+        }
+        
+        console.log('🔥 Calling onUploadComplete with:', completedFile);
+        console.log('🔥 extractedText:', completedFile.extractedText);
+        console.log('🔥 About to call parent callback...');
+        
+        try {
+          onUploadCompleteRef.current([completedFile])
+          console.log('🔥 onUploadComplete called successfully - parent should now have file info');
+        } catch (callbackError) {
+          console.error('🔥 Error calling onUploadComplete:', callbackError);
+        }
+      } else {
+        console.log('🔥 onUploadComplete is not provided!');
       }
 
       toast.success(`${uploadFile.file.name} 업로드 완료`)
@@ -241,7 +286,7 @@ export function EnhancedFileUpload({
       ))
       toast.error(`${uploadFile.file.name} 업로드 실패`)
     }
-  }
+  }, []) // Empty dependency array since we use refs
 
   const removeFile = (id: string) => {
     setFiles(prev => prev.filter(f => f.id !== id))
@@ -293,8 +338,11 @@ export function EnhancedFileUpload({
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('🔥 handleFileSelect triggered');
     const selectedFiles = e.target.files
+    console.log('🔥 Selected files:', selectedFiles?.length || 0);
     if (selectedFiles && selectedFiles.length > 0) {
+      console.log('🔥 Calling handleFiles with selected files');
       handleFiles(selectedFiles)
     }
   }

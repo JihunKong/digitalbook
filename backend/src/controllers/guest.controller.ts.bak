@@ -1,0 +1,203 @@
+import { Request, Response, NextFunction } from 'express';
+import { getDatabase } from '../config/database';
+import { AppError } from '../middlewares/errorHandler';
+import { v4 as uuidv4 } from 'uuid';
+import jwt from 'jsonwebtoken';
+
+class GuestController {
+  // 학생이 접근 코드로 교과서에 접근
+  async accessTextbook(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { accessCode, studentId, studentName } = req.body;
+      const prisma = getDatabase();
+      
+      // 접근 코드로 교과서 찾기
+      const textbook = await prisma.textbook.findUnique({
+        where: { accessCode },
+        include: {
+          teacher: {
+            select: {
+              name: true,
+              email: true
+            }
+          }
+        }
+      });
+      
+      if (!textbook) {
+        throw new AppError('유효하지 않은 접근 코드입니다', 404);
+      }
+      
+      if (!textbook?.isPublic) {
+        throw new AppError('아직 공개되지 않은 교과서입니다', 403);
+      }
+      
+      // 게스트 세션 생성
+      const sessionId = uuidv4();
+      const guest = await prisma.guestAccess.create({
+        data: {
+          textbookId: textbook.id,
+          studentId: studentId || `guest_${uuidv4()}`,
+          studentName: studentName || '게스트',
+          sessionId
+        }
+      });
+      
+      // 게스트용 토큰 생성
+      const token = jwt.sign(
+        {
+          guestId: guest.id,
+          sessionId,
+          textbookId: textbook.id,
+          isGuest: true
+        },
+        process.env.JWT_SECRET!,
+        { expiresIn: '24h' }
+      );
+      
+      res.json({
+        token,
+        guest: {
+          id: guest.id,
+          studentId,
+          studentName,
+          sessionId
+        },
+        textbook: {
+          id: textbook.id,
+          title: textbook.title,
+          subject: textbook.subject,
+          grade: textbook.grade,
+          teacher: textbook.teacher,
+          coverImage: textbook.coverImage
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+  
+  // 게스트 학습 기록 저장
+  async saveGuestStudyRecord(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { guestId } = req.user as any;
+      const { chapterId, pageNumber, timeSpent, completed } = req.body;
+      const prisma = getDatabase();
+      
+      // 기존 기록 확인
+      // TODO: Implement guest study records
+      const existingRecord = null; // await prisma.guestStudyRecord.findFirst({
+        where: {
+          guestId,
+          chapterId,
+          pageNumber
+        }
+      });
+      
+      if (existingRecord) {
+        // 기존 기록 업데이트
+        const updatedRecord = null; // await prisma.guestStudyRecord.update({
+          where: { id: existingRecord.id },
+          data: {
+            timeSpent: existingRecord.timeSpent + timeSpent,
+            completed: completed || existingRecord.completed
+          }
+        });
+        
+        res.json(updatedRecord);
+      } else {
+        // 새 기록 생성
+        const newRecord = null; // await prisma.guestStudyRecord.create({
+          data: {
+            guestId,
+            chapterId,
+            pageNumber,
+            timeSpent,
+            completed
+          }
+        });
+        
+        res.json(newRecord);
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+  
+  // 게스트 채팅 메시지 저장
+  async saveGuestChatMessage(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { guestId } = req.user as any;
+      const { content, context } = req.body;
+      const prisma = getDatabase();
+      
+      // TODO: Implement guest chat messages
+      const message = null; // await prisma.guestChatMessage.create({
+        data: {
+          guestId,
+          role: 'USER',
+          content,
+          context
+        }
+      });
+      
+      res.json(message);
+    } catch (error) {
+      next(error);
+    }
+  }
+  
+  // 게스트 학습 통계 조회
+  async getGuestStats(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { guestId } = req.user as any;
+      const prisma = getDatabase();
+      
+      const [studyRecords, chatMessages, guest] = await prisma.$transaction([
+        Promise.resolve([]), // prisma.guestStudyRecord.findMany({ where: { guestId }, orderBy: { updatedAt: 'desc' } }),
+        Promise.resolve(0), // prisma.guestChatMessage.count({ where: { guestId } }),
+        prisma.guestAccess.findUnique({
+          where: { id: guestId },
+          include: {
+            textbook: {
+              select: {
+                title: true,
+                content: true
+              }
+            }
+          }
+        })
+      ]);
+      
+      if (!guest) {
+        throw new AppError('게스트 정보를 찾을 수 없습니다', 404);
+      }
+      
+      // 학습 진도 계산
+      const textbookContent = guest.textbook.content as any;
+      const totalPages = textbookContent.chapters?.reduce((sum: number, chapter: any) => 
+        sum + (chapter.pages?.length || 0), 0) || 0;
+      
+      const completedPages = studyRecords.filter(r => r.completed).length;
+      const totalTimeSpent = studyRecords.reduce((sum, r) => sum + r.timeSpent, 0);
+      
+      res.json({
+        studentId: guest.studentId,
+        studentName: guest.studentName,
+        textbookTitle: guest.textbook.title,
+        progress: {
+          completedPages,
+          totalPages,
+          percentage: totalPages > 0 ? Math.round((completedPages / totalPages) * 100) : 0
+        },
+        timeSpent: totalTimeSpent,
+        chatCount: chatMessages,
+        lastActivity: studyRecords[0]?.updatedAt || guest.createdAt
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+}
+
+export const guestController = new GuestController();

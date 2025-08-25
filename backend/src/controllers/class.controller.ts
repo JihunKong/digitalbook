@@ -71,7 +71,7 @@ async function extractDocumentContent(filePath: string, mimeType: string): Promi
 // 수업 생성
 export const createClass = async (req: Request, res: Response) => {
   try {
-    const teacherId = req.user?.id;
+    const teacherId = req.user?.userId;
     if (!teacherId) {
       return res.status(401).json({ error: '인증이 필요합니다.' });
     }
@@ -101,7 +101,11 @@ export const createClass = async (req: Request, res: Response) => {
       },
       include: {
         teacher: {
-          select: { name: true, email: true }
+          select: {
+            user: {
+              select: { name: true, email: true }
+            }
+          }
         }
       }
     });
@@ -138,50 +142,16 @@ export const uploadDocument = async (req: Request, res: Response) => {
     }
 
     // 권한 확인
-    if (classData.teacherId !== req.user?.id) {
+    if (classData.teacherId !== req.user?.userId) {
       return res.status(403).json({ error: '권한이 없습니다.' });
     }
 
-    // 문서 내용 추출
-    const content = await extractDocumentContent(file.path, file.mimetype);
-
-    // 기존 문서가 있으면 삭제
-    if (classData.documentId) {
-      await prisma.document.delete({
-        where: { id: classData.documentId }
-      });
-    }
-
-    // 새 문서 저장
-    const document = await prisma.document.create({
-      data: {
-        filename: file.filename,
-        originalName: file.originalname,
-        mimeType: file.mimetype,
-        content,
-        fileUrl: `/uploads/documents/${file.filename}`,
-        metadata: {
-          size: file.size,
-          uploadedBy: req.user.name
-        }
-      }
-    });
-
-    // 수업에 문서 연결
-    await prisma.class.update({
-      where: { id: classId },
-      data: { documentId: document.id }
-    });
-
-    return res.json({
-      success: true,
-      document: {
-        id: document.id,
-        name: document.originalName,
-        type: document.mimeType,
-        uploadedAt: document.uploadedAt
-      },
-      message: '문서가 업로드되었습니다.'
+    // TODO: This functionality has been replaced with PDF upload infrastructure
+    // See pdf.controller.ts for PDF upload implementation
+    // For now, return a message indicating to use the PDF upload endpoint
+    
+    return res.status(400).json({ 
+      error: 'Please use the /api/pdf/upload endpoint for uploading PDF documents to classes' 
     });
   } catch (error) {
     console.error('문서 업로드 오류:', error);
@@ -192,7 +162,7 @@ export const uploadDocument = async (req: Request, res: Response) => {
 // 교사의 수업 목록 조회
 export const getTeacherClasses = async (req: Request, res: Response) => {
   try {
-    const teacherId = req.user?.id;
+    const teacherId = req.user?.userId;
     if (!teacherId) {
       return res.status(401).json({ error: '인증이 필요합니다.' });
     }
@@ -203,18 +173,21 @@ export const getTeacherClasses = async (req: Request, res: Response) => {
         isActive: true 
       },
       include: {
-        document: {
+        pdfTextbooks: {
           select: {
             id: true,
-            originalName: true,
-            mimeType: true,
-            uploadedAt: true
-          }
+            filename: true,
+            totalPages: true,
+            status: true,
+            createdAt: true
+          },
+          take: 1,
+          orderBy: { createdAt: 'desc' }
         },
         _count: {
           select: {
-            students: true,
-            questions: true
+            enrollments: true,
+            pdfTextbooks: true
           }
         }
       },
@@ -227,9 +200,9 @@ export const getTeacherClasses = async (req: Request, res: Response) => {
         id: c.id,
         code: c.code,
         name: c.name,
-        document: c.document,
-        studentCount: c._count.students,
-        questionCount: c._count.questions,
+        latestPDF: c.pdfTextbooks[0] || null,
+        studentCount: c._count.enrollments,
+        pdfCount: c._count.pdfTextbooks,
         createdAt: c.createdAt,
         expiresAt: c.expiresAt
       }))
@@ -255,16 +228,32 @@ export const getClassQuestions = async (req: Request, res: Response) => {
       return res.status(404).json({ error: '수업을 찾을 수 없습니다.' });
     }
 
-    if (classData.teacherId !== req.user?.id) {
+    if (classData.teacherId !== req.user?.userId) {
       return res.status(403).json({ error: '권한이 없습니다.' });
     }
 
+    // Get student IDs enrolled in this class
+    const enrolledStudents = await prisma.classEnrollment.findMany({
+      where: { classId },
+      select: { studentId: true }
+    });
+    const studentIds = enrolledStudents.map(e => e.studentId);
+
     // 질문 조회
     const questions = await prisma.question.findMany({
-      where: { classId },
+      where: { 
+        studentId: {
+          in: studentIds
+        }
+      },
       include: {
         student: {
-          select: { name: true, studentId: true }
+          select: { 
+            user: {
+              select: { name: true }
+            },
+            studentId: true 
+          }
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -273,14 +262,18 @@ export const getClassQuestions = async (req: Request, res: Response) => {
     });
 
     const total = await prisma.question.count({
-      where: { classId }
+      where: { 
+        studentId: {
+          in: studentIds
+        }
+      }
     });
 
     return res.json({
       success: true,
       questions: questions.map(q => ({
         id: q.id,
-        student: q.student.name,
+        student: q.student.user.name,
         studentId: q.student.studentId,
         question: q.question,
         type: q.questionType,
@@ -313,7 +306,7 @@ export const deleteClass = async (req: Request, res: Response) => {
       return res.status(404).json({ error: '수업을 찾을 수 없습니다.' });
     }
 
-    if (classData.teacherId !== req.user?.id) {
+    if (classData.teacherId !== req.user?.userId) {
       return res.status(403).json({ error: '권한이 없습니다.' });
     }
 

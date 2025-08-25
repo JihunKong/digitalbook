@@ -6,7 +6,7 @@ export const notificationController = {
   // Get user notifications
   async getUserNotifications(req: Request, res: Response) {
     try {
-      const { userId } = req.user as any;
+      const userId = (req as any).userId;
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
       
@@ -21,7 +21,7 @@ export const notificationController = {
   // Get unread count
   async getUnreadCount(req: Request, res: Response) {
     try {
-      const { userId } = req.user as any;
+      const userId = (req as any).userId;
       const count = await notificationService.getUnreadCount(userId);
       res.json({ count });
     } catch (error) {
@@ -34,7 +34,7 @@ export const notificationController = {
   async markAsRead(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { userId } = req.user as any;
+      const userId = (req as any).userId;
       
       const notification = await notificationService.markAsRead(id, userId);
       res.json(notification);
@@ -47,7 +47,7 @@ export const notificationController = {
   // Mark all notifications as read
   async markAllAsRead(req: Request, res: Response) {
     try {
-      const { userId } = req.user as any;
+      const userId = (req as any).userId;
       
       const result = await notificationService.markAllAsRead(userId);
       res.json(result);
