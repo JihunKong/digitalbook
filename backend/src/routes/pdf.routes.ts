@@ -11,7 +11,7 @@ router.use(authenticateUser);
 router.post(
   '/upload',
   requireRole(['TEACHER', 'ADMIN']),
-  upload.single('pdf'),
+  upload.fields([{ name: 'pdf', maxCount: 1 }]),
   pdfController.uploadPDF.bind(pdfController)
 );
 

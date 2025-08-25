@@ -45,7 +45,8 @@ export class PDFController {
    */
   async uploadPDF(req: Request, res: Response) {
     try {
-      const file = req.file;
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const file = files?.pdf?.[0];
       const { classId } = req.body;
       const teacherId = (req as any).user?.userId;
 
