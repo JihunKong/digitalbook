@@ -12,12 +12,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get auth token from cookies
-    const accessToken = request.cookies.get('accessToken')?.value
+    // Get auth token from cookies or Authorization header
+    const cookieToken = request.cookies.get('accessToken')?.value
+    const authHeader = request.headers.get('authorization')
+    const accessToken = authHeader || (cookieToken ? `Bearer ${cookieToken}` : undefined)
     
     const headers: HeadersInit = {}
     if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`
+      headers['Authorization'] = accessToken
     }
 
     // Forward all cookies from the frontend request to backend
