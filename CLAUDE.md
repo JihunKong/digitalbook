@@ -239,3 +239,8 @@ docker-compose ps
 - SQL injection prevention via Prisma ORM
 - XSS protection with React's automatic escaping
 - CORS configuration for API access
+- xn--220bu63c.com
+ 3.37.168.225. 도커를 사용합니다.
+ 다만 서버의 env 계열, yml계열, md계열 파일을 커밋 푸시할 때는 불필요한 정보가 들어갈 수 있으니 이그노어 처리를 하는 것을 잊지 마십시오. 민감정보의 경우 pem 키를 활용해 ssh로 직접 입력합니다.
+절대 불필요하게 yml, env, md, sh, py 파일들을 추가로 생성하지 마세요. 테스트를 위해 생성했다면 사용 후에는 반드시 삭제하세요.
+ultra think, 적절한 agent를 배치하세요. mcp에서 context7 등을 활용해 최신 코드들을 확인하세요. 깃 CLI를 설치하여 깃에서 푸시하는 방법을 활용하세요.

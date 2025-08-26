@@ -104,7 +104,7 @@ class FileController {
       if (!file) {
         throw new AppError('No file uploaded', 400);
       }
-      const userId = (req as any).userId;
+      const userId = (req as any).user?.userId;
       
       // Extract text from the uploaded file
       const extractedText = await this.extractTextFromFile(file.path, file.mimetype);
@@ -172,7 +172,7 @@ class FileController {
       }
       
       const files = req.files as Express.Multer.File[];
-      const userId = (req as any).userId;
+      const userId = (req as any).user?.userId;
       const results = [];
       
       for (const file of files) {
@@ -251,7 +251,7 @@ class FileController {
     
     try {
       const { fileId } = req.params;
-      const userId = (req as any).userId;
+      const userId = (req as any).user?.userId;
       
       const file = await prisma.file.findFirst({
         where: {
@@ -285,7 +285,16 @@ class FileController {
     
     try {
       const { fileId } = req.params;
-      const userId = (req as any).userId;
+      const userId = (req as any).user?.userId;
+      
+      console.log('🔐 Backend file serve auth debug:', {
+        fileId,
+        hasUser: !!(req as any).user,
+        userId,
+        userRole: (req as any).user?.role,
+        authHeader: req.headers.authorization ? 'present' : 'missing',
+        hasCookies: !!req.headers.cookie
+      });
       
       const file = await prisma.file.findFirst({
         where: {
@@ -326,7 +335,7 @@ class FileController {
     
     try {
       const { fileId } = req.params;
-      const userId = (req as any).userId;
+      const userId = (req as any).user?.userId;
       
       const file = await prisma.file.findFirst({
         where: {

@@ -634,11 +634,20 @@ export default function CreateTextbookPage() {
                 )}
 
                 {/* PDF 뷰어 - PDF 파일이 업로드된 경우에만 표시 */}
-                {uploadedFile && uploadedFile.type === 'application/pdf' && (
-                  <div className="mt-6">
-                    <PDFViewer
-                      fileUrl={uploadedFile.url}
-                      fileName={uploadedFile.name}
+                {uploadedFile && uploadedFile.type === 'application/pdf' && (() => {
+                  // Force relative URL to avoid browser cache issues with localhost:4000
+                  const fileId = uploadedFile.id || uploadedFile.url.match(/\/files\/([^\/]+)\//)?.[1];
+                  const correctedUrl = fileId ? `/api/files/${fileId}/serve` : uploadedFile.url;
+                  console.log('🔧 PDF URL correction:', {
+                    original: uploadedFile.url,
+                    fileId,
+                    corrected: correctedUrl
+                  });
+                  return (
+                    <div className="mt-6">
+                      <PDFViewer
+                        fileUrl={correctedUrl}
+                        fileName={uploadedFile.name}
                       onExtractText={(text) => {
                         // PDF 뷰어에서 추가 텍스트 추출이 가능한 경우
                         if (formData.contentType === 'TEXT') {
@@ -650,7 +659,8 @@ export default function CreateTextbookPage() {
                       }}
                     />
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* 업로드된 파일 정보 표시 */}
                 {uploadedFile && (

@@ -17,18 +17,28 @@ export async function GET(
     // Get auth token from cookies or Authorization header
     const cookieToken = request.cookies.get('accessToken')?.value
     const authHeader = request.headers.get('authorization')
-    const accessToken = authHeader || (cookieToken ? `Bearer ${cookieToken}` : undefined)
     
     const headers: HeadersInit = {}
-    if (accessToken) {
-      headers['Authorization'] = accessToken
+    
+    // Try Authorization header first, then cookie
+    if (authHeader) {
+      headers['Authorization'] = authHeader
+    } else if (cookieToken) {
+      headers['Authorization'] = `Bearer ${cookieToken}`
     }
 
-    // Forward all cookies from the frontend request to backend
-    const cookies = request.headers.get('cookie') || ''
-    if (cookies) {
-      headers['Cookie'] = cookies
+    // Always forward all cookies to backend (this is important for httpOnly cookies)
+    const cookieHeader = request.headers.get('cookie')
+    if (cookieHeader) {
+      headers['Cookie'] = cookieHeader
     }
+    
+    console.log('🔐 File serve auth debug:', {
+      hasAuthHeader: !!authHeader,
+      hasCookieToken: !!cookieToken,
+      hasCookieHeader: !!cookieHeader,
+      headers: Object.keys(headers)
+    })
 
     // Forward the request to backend
     const backendUrl = process.env.BACKEND_INTERNAL_URL || 'http://localhost:4000'
