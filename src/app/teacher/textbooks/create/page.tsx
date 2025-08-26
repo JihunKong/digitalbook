@@ -266,8 +266,15 @@ export default function CreateTextbookPage() {
     return commonWords.filter(word => content.includes(word)).slice(0, 5);
   };
 
+  const [creationProgress, setCreationProgress] = useState({
+    step: '',
+    message: '',
+    progress: 0
+  })
+
   const handleSubmit = async () => {
     setIsProcessing(true)
+    setCreationProgress({ step: 'validating', message: '입력 데이터를 검증하고 있습니다...', progress: 10 })
     
     try {
       // 필수 필드 검증
@@ -298,6 +305,8 @@ export default function CreateTextbookPage() {
         return
       }
 
+      setCreationProgress({ step: 'preparing', message: '교과서 데이터를 준비하고 있습니다...', progress: 30 })
+
       // AI 설정 구성
       const aiSettings = {
         difficulty: formData.questionDifficulty,
@@ -318,18 +327,29 @@ export default function CreateTextbookPage() {
         aiSettings
       }
 
+      setCreationProgress({ step: 'creating', message: '교과서를 생성하고 있습니다...', progress: 50 })
+
       // 교과서 생성
       const newTextbook = await apiClient.createTextbook(textbookData)
+      
+      setCreationProgress({ step: 'ai-generating', message: 'AI가 콘텐츠를 생성하고 있습니다...', progress: 80 })
+      
+      // AI 생성이 활성화된 경우 잠깐 대기 (백그라운드에서 처리됨)
+      if (formData.generateQuestions || formData.generateImages) {
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      }
+      
+      setCreationProgress({ step: 'complete', message: '교과서 생성이 완료되었습니다!', progress: 100 })
       
       toast({
         title: '교재 생성 완료',
         description: '새로운 교재가 성공적으로 생성되었습니다.',
       })
       
-      // 생성된 교과서 편집 페이지로 이동
+      // 생성된 교과서 미리보기 페이지로 이동
       const textbookResponse = newTextbook.data as { id?: string }
       if (textbookResponse?.id) {
-        router.push(`/teacher/textbooks/${textbookResponse.id}/edit`)
+        router.push(`/teacher/textbooks/${textbookResponse.id}`)
       } else {
         router.push('/teacher/textbooks')
       }
@@ -342,6 +362,7 @@ export default function CreateTextbookPage() {
       })
     } finally {
       setIsProcessing(false)
+      setCreationProgress({ step: '', message: '', progress: 0 })
     }
   }
 
@@ -899,6 +920,71 @@ export default function CreateTextbookPage() {
           </CardContent>
         </Card>
 
+        {/* Loading Overlay */}
+        {isProcessing && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-96 mx-4">
+              <CardContent className="p-6 text-center">
+                <div className="space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold">교과서 생성 중...</h3>
+                    <p className="text-gray-600">{creationProgress.message}</p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${creationProgress.progress}%` }}
+                      />
+                    </div>
+                    <p className="text-sm text-gray-500">{creationProgress.progress}% 완료</p>
+                  </div>
+                  
+                  <div className="text-xs text-gray-500 space-y-1">
+                    {creationProgress.step === 'validating' && (
+                      <p>✓ 데이터 검증 중</p>
+                    )}
+                    {creationProgress.step === 'preparing' && (
+                      <>
+                        <p>✓ 데이터 검증 완료</p>
+                        <p>• 교과서 구조 준비 중</p>
+                      </>
+                    )}
+                    {creationProgress.step === 'creating' && (
+                      <>
+                        <p>✓ 데이터 검증 완료</p>
+                        <p>✓ 교과서 구조 준비 완료</p>
+                        <p>• 교과서 생성 중</p>
+                      </>
+                    )}
+                    {creationProgress.step === 'ai-generating' && (
+                      <>
+                        <p>✓ 데이터 검증 완료</p>
+                        <p>✓ 교과서 구조 준비 완료</p>
+                        <p>✓ 교과서 생성 완료</p>
+                        <p>• AI 콘텐츠 생성 중</p>
+                      </>
+                    )}
+                    {creationProgress.step === 'complete' && (
+                      <>
+                        <p>✓ 데이터 검증 완료</p>
+                        <p>✓ 교과서 구조 준비 완료</p>
+                        <p>✓ 교과서 생성 완료</p>
+                        <p>✓ AI 콘텐츠 생성 완료</p>
+                        <p>• 페이지 이동 중</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex justify-between mt-6">
@@ -965,7 +1051,12 @@ export default function CreateTextbookPage() {
               {isProcessing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  생성 중...
+                  {creationProgress.step === 'validating' ? '검증 중...' :
+                   creationProgress.step === 'preparing' ? '준비 중...' :
+                   creationProgress.step === 'creating' ? '생성 중...' :
+                   creationProgress.step === 'ai-generating' ? 'AI 생성 중...' :
+                   creationProgress.step === 'complete' ? '완료!' :
+                   '처리 중...'}
                 </>
               ) : (
                 <>

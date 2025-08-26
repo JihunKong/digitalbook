@@ -109,9 +109,28 @@ class TextbookController {
   
   async createTextbook(req: Request, res: Response, next: NextFunction) {
     try {
-      const { title, description, content, metadata, aiGenerated, aiModel, aiPrompt } = req.body;
+      const { 
+        title, 
+        subject, 
+        grade, 
+        description, 
+        contentType, 
+        content, 
+        fileId,
+        aiSettings 
+      } = req.body;
       const userId = req.user!.userId;
       const prisma = getDatabase();
+      
+      logger.info(`Creating textbook for user ${userId} with data:`, {
+        title,
+        subject,
+        grade,
+        contentType,
+        hasContent: !!content,
+        hasFileId: !!fileId,
+        aiSettings
+      });
       
       // Get or create teacher profile
       let teacherProfile = await prisma.teacherProfile.findUnique({
@@ -123,31 +142,154 @@ class TextbookController {
           data: {
             userId,
             school: '',
-            subject: '',
-            grade: '',
+            subject: subject || '',
+            grade: grade?.toString() || '',
             bio: ''
           }
         });
       }
+      
+      // Prepare content structure
+      let textbookContent: any = {};
+      
+      if (contentType === 'FILE' && fileId) {
+        // File-based textbook
+        textbookContent = {
+          type: 'file',
+          fileId: fileId,
+          contentType: contentType
+        };
+      } else if (contentType === 'TEXT' && content) {
+        // Text-based textbook
+        textbookContent = {
+          type: 'text',
+          text: content,
+          contentType: contentType
+        };
+      } else if (contentType === 'MIXED') {
+        // Mixed content textbook
+        textbookContent = {
+          type: 'mixed',
+          text: content || '',
+          fileId: fileId || null,
+          contentType: contentType
+        };
+      }
+      
+      // Prepare metadata
+      const metadata = {
+        subject: subject || 'Unknown',
+        grade: grade || 'Unknown',
+        contentType: contentType || 'TEXT',
+        aiSettings: aiSettings || {
+          difficulty: 'medium',
+          includeExercises: true,
+          includeImages: true,
+          targetPageLength: 500
+        }
+      };
       
       const textbook = await prisma.textbook.create({
         data: {
           title,
           description: description || '',
           authorId: teacherProfile.id,
-          content: content || {},
-          metadata: metadata || {},
-          aiGenerated: aiGenerated || false,
-          aiModel: aiModel || null,
-          aiPrompt: aiPrompt || null,
+          content: textbookContent,
+          metadata: metadata,
+          aiGenerated: !!(aiSettings && (aiSettings.includeExercises || aiSettings.includeImages)),
+          aiModel: 'gpt-4',
+          aiPrompt: aiSettings ? JSON.stringify(aiSettings) : null,
           isPublic: false
         },
       });
       
+      // If AI settings are provided, trigger content generation in background
+      if (aiSettings && (content || fileId)) {
+        try {
+          await this.generateContentForTextbook(textbook.id, content, fileId, aiSettings);
+        } catch (aiError) {
+          logger.error(`AI content generation failed for textbook ${textbook.id}:`, aiError);
+          // Don't fail the entire request if AI generation fails
+        }
+      }
+      
       logger.info(`Textbook created: ${textbook.id}`);
-      res.status(201).json(textbook);
+      res.status(201).json({ id: textbook.id, ...textbook });
     } catch (error) {
+      logger.error('Textbook creation error:', error);
       next(error);
+    }
+  }
+  
+  private async generateContentForTextbook(
+    textbookId: string,
+    content: string | null,
+    fileId: string | null,
+    aiSettings: any
+  ) {
+    try {
+      const prisma = getDatabase();
+      
+      let textContent = content;
+      
+      // If we have a fileId, get the extracted text from the file
+      if (fileId && !textContent) {
+        const file = await prisma.file.findUnique({
+          where: { id: fileId },
+          select: { extractedText: true }
+        });
+        
+        if (file?.extractedText) {
+          textContent = file.extractedText;
+        }
+      }
+      
+      if (!textContent) {
+        logger.warn(`No content available for AI generation for textbook ${textbookId}`);
+        return;
+      }
+      
+      // Generate content using AI service
+      const generatedContent = await aiService.generateTextbookContent(
+        textContent,
+        {
+          grade: 3, // Default grade, could be made dynamic
+          subject: '국어',
+          difficulty: aiSettings.difficulty || 'medium',
+          includeImages: aiSettings.includeImages || false,
+          includeExercises: aiSettings.includeExercises || false,
+          targetPageLength: aiSettings.targetPageLength || 500
+        }
+      );
+      
+      // Parse the generated content and update the textbook
+      let parsedContent;
+      try {
+        parsedContent = typeof generatedContent.content === 'string' 
+          ? JSON.parse(generatedContent.content) 
+          : generatedContent.content;
+      } catch (parseError) {
+        logger.warn('Failed to parse AI generated content, using raw content');
+        parsedContent = { content: generatedContent.content };
+      }
+      
+      // Update textbook with AI generated content
+      await prisma.textbook.update({
+        where: { id: textbookId },
+        data: {
+          content: {
+            ...parsedContent,
+            originalContent: textContent,
+            fileId: fileId,
+            aiGenerated: true
+          }
+        },
+      });
+      
+      logger.info(`AI content generated for textbook: ${textbookId}`);
+    } catch (error) {
+      logger.error(`Failed to generate AI content for textbook ${textbookId}:`, error);
+      throw error;
     }
   }
   

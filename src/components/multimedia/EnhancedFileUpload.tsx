@@ -245,10 +245,10 @@ export function EnhancedFileUpload({
       if (onUploadCompleteRef.current) {
         // Use the current upload file directly to avoid state timing issues
         const fileId = response.file?.id;
-        // For file serving, connect directly to backend
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+        // For file serving, use Next.js API route which forwards to backend
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
         const fileUrl = fileId 
-          ? `${backendUrl}/api/files/${fileId}/content`
+          ? `${apiUrl}/files/${fileId}/serve`
           : URL.createObjectURL(uploadFile.file);
           
         const completedFile = {
