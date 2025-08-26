@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Download } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Download, AlertTriangle, ExternalLink } from 'lucide-react'
 
 interface PDFViewerProps {
   fileUrl: string
@@ -15,9 +16,29 @@ export function PDFViewer({ fileUrl, fileName, onExtractText }: PDFViewerProps) 
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [scale, setScale] = useState(1.0)
+  const [iframeError, setIframeError] = useState(false)
+  const [useObjectTag, setUseObjectTag] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
-  // For now, use iframe as a simple PDF viewer
-  // In production, you'd want to use react-pdf or PDF.js
+  // Debug: Log the file URL to console
+  useEffect(() => {
+    console.log('🔍 PDFViewer fileUrl:', fileUrl)
+    console.log('🔍 PDFViewer fileName:', fileName)
+  }, [fileUrl, fileName])
+
+  // Handle iframe loading errors
+  const handleIframeError = () => {
+    console.warn('❌ Iframe failed to load PDF, trying object tag fallback')
+    setIframeError(true)
+    setUseObjectTag(true)
+  }
+
+  // Handle iframe load success
+  const handleIframeLoad = () => {
+    console.log('✅ PDF iframe loaded successfully')
+    setIframeError(false)
+  }
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -51,13 +72,54 @@ export function PDFViewer({ fileUrl, fileName, onExtractText }: PDFViewerProps) 
         </div>
       </CardHeader>
       <CardContent>
-        <div className="relative w-full h-[600px] border rounded-lg overflow-hidden">
-          {/* Simple iframe-based PDF viewer */}
-          <iframe
-            src={`${fileUrl}#zoom=${Math.round(scale * 100)}`}
-            className="w-full h-full"
-            title={`PDF 뷰어: ${fileName}`}
-          />
+        {/* Error alert for CSP or loading issues */}
+        {iframeError && (
+          <Alert className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              PDF 미리보기에 문제가 발생했습니다. 다운로드 버튼을 사용하여 파일을 확인하세요.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        <div className="relative w-full h-[600px] border rounded-lg overflow-hidden bg-gray-50">
+          {!useObjectTag ? (
+            /* Primary: iframe-based PDF viewer */
+            <iframe
+              ref={iframeRef}
+              src={`${fileUrl}#zoom=${Math.round(scale * 100)}`}
+              className="w-full h-full"
+              title={`PDF 뷰어: ${fileName}`}
+              onError={handleIframeError}
+              onLoad={handleIframeLoad}
+              sandbox="allow-same-origin allow-scripts"
+            />
+          ) : (
+            /* Fallback: object tag */
+            <object
+              data={`${fileUrl}#zoom=${Math.round(scale * 100)}`}
+              type="application/pdf"
+              className="w-full h-full"
+              title={`PDF 뷰어: ${fileName}`}
+            >
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <AlertTriangle className="w-12 h-12 mb-4" />
+                <p className="text-lg font-medium mb-2">PDF를 미리보기할 수 없습니다</p>
+                <p className="text-sm mb-4 text-center">
+                  브라우저가 PDF 미리보기를 지원하지 않거나<br/>
+                  보안 정책으로 인해 차단되었습니다.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(fileUrl, '_blank')}
+                  className="mb-2"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  새 탭에서 열기
+                </Button>
+              </div>
+            </object>
+          )}
         </div>
         
         {/* PDF 페이지 네비게이션 (향후 react-pdf 구현시 사용) */}

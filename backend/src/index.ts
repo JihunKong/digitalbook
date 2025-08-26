@@ -50,6 +50,8 @@ app.use(helmet({
       'img-src': ["'self'", 'data:', 'blob:', '*'],
       'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       'connect-src': ["'self'", 'ws:', 'wss:', '*'],
+      'frame-src': ["'self'", "localhost:*", "*.xn--220bu63c.com", "xn--220bu63c.com", "data:", "blob:"],
+      'frame-ancestors': ["'self'", "localhost:*", "*.xn--220bu63c.com", "xn--220bu63c.com"],
     },
   },
   hsts: {
