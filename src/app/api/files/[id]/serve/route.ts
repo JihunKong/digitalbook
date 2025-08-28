@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Force dynamic route to prevent static generation
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -43,9 +47,24 @@ export async function GET(
     // Forward the request to backend
     const backendUrl = process.env.BACKEND_INTERNAL_URL || 'http://localhost:4000'
 
+    console.log('🚀 Forwarding file request to backend:', {
+      fileId: id,
+      backendUrl,
+      fullUrl: `${backendUrl}/api/files/${id}/content`,
+      hasAuthHeader: !!authHeader,
+      hasCookieToken: !!cookieToken
+    })
+
     const backendResponse = await fetch(`${backendUrl}/api/files/${id}/content`, {
       method: 'GET',
       headers,
+    })
+
+    console.log('📡 Backend response status:', {
+      fileId: id,
+      status: backendResponse.status,
+      statusText: backendResponse.statusText,
+      ok: backendResponse.ok
     })
 
     if (backendResponse.ok) {
@@ -66,6 +85,16 @@ export async function GET(
           responseHeaders.set(key, value)
         }
       })
+
+      // Add security headers for PDF viewing
+      responseHeaders.set('X-Content-Type-Options', 'nosniff')
+      responseHeaders.set('X-Frame-Options', 'SAMEORIGIN')
+      responseHeaders.set('Content-Security-Policy', "default-src 'self'; object-src 'self'; frame-ancestors 'self'")
+      
+      // For PDF files, allow embedding in same origin
+      if (responseHeaders.get('content-type')?.includes('application/pdf')) {
+        responseHeaders.set('X-Frame-Options', 'SAMEORIGIN')
+      }
 
       // Return the file stream with appropriate headers
       return new NextResponse(fileStream, {

@@ -106,6 +106,11 @@ class FileController {
       }
       const userId = (req as any).user?.userId;
       
+      // Ensure user is authenticated for file uploads
+      if (!userId) {
+        throw new AppError('Authentication required for file uploads', 401);
+      }
+      
       // Extract text from the uploaded file
       const extractedText = await this.extractTextFromFile(file.path, file.mimetype);
       
@@ -117,7 +122,7 @@ class FileController {
           mimeType: file.mimetype,
           size: file.size,
           path: file.path,
-          uploadedBy: userId || 'anonymous',
+          uploadedBy: userId,
           extractedText: extractedText.substring(0, 10000), // Store first 10000 chars
         },
       });
@@ -173,6 +178,12 @@ class FileController {
       
       const files = req.files as Express.Multer.File[];
       const userId = (req as any).user?.userId;
+      
+      // Ensure user is authenticated for file uploads
+      if (!userId) {
+        throw new AppError('Authentication required for file uploads', 401);
+      }
+      
       const results = [];
       
       for (const file of files) {
@@ -293,7 +304,10 @@ class FileController {
         userId,
         userRole: (req as any).user?.role,
         authHeader: req.headers.authorization ? 'present' : 'missing',
-        hasCookies: !!req.headers.cookie
+        hasCookies: !!req.headers.cookie,
+        cookieKeys: req.headers.cookie ? Object.keys(req.cookies || {}) : [],
+        requestPath: req.path,
+        requestMethod: req.method
       });
       
       const file = await prisma.file.findFirst({
@@ -304,13 +318,35 @@ class FileController {
       });
       
       if (!file) {
+        console.warn('📁 File not found in database:', {
+          fileId,
+          userId,
+          hasUser: !!(req as any).user,
+          searchCriteria: { id: fileId, uploadedBy: userId }
+        });
         throw new AppError('File not found', 404);
       }
+
+      console.log('✅ File found in database:', {
+        fileId: file.id,
+        fileName: file.originalName,
+        filePath: file.path,
+        fileSize: file.size,
+        mimeType: file.mimeType,
+        uploadedBy: file.uploadedBy,
+        currentUserId: userId
+      });
 
       // Check if file exists on disk
       try {
         await fs.access(file.path);
+        console.log('✅ File exists on disk:', file.path);
       } catch (error) {
+        console.error('❌ File not found on disk:', {
+          filePath: file.path,
+          fileId,
+          error: error instanceof Error ? error.message : error
+        });
         throw new AppError('File not found on disk', 404);
       }
       
