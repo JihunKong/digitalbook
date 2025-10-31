@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # Copy PDF.js static files from node_modules to public directory
 # This script should be run after npm install
 

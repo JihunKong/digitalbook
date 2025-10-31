@@ -19,7 +19,7 @@
     "ios": "./ios-build.sh",
     "cap:sync": "cap sync",
     "cap:open:ios": "cap open ios",
-    "postinstall": "bash scripts/copy-pdfjs-files.sh"
+    "postinstall": "sh scripts/copy-pdfjs-files.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
