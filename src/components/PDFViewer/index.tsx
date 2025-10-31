@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/TextLayer.css';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize, Minimize } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -11,8 +12,8 @@ import ActivityPanel from './ActivityPanel';
 import ProgressTracker from './ProgressTracker';
 import { usePDFTracking } from '@/hooks/usePDFTracking';
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// Configure PDF.js worker - use local worker to avoid CORS and version mismatch
+pdfjs.GlobalWorkerOptions.workerSrc = '/workers/pdf.worker.min.js';
 
 interface PDFViewerProps {
   pdfUrl: string;
@@ -249,6 +250,11 @@ export default function PDFViewer({
           <div className="flex justify-center p-4">
             <Document
               file={pdfUrl}
+              options={{
+                cMapUrl: '/pdfjs/cmaps/',
+                cMapPacked: true,
+                standardFontDataUrl: '/pdfjs/standard_fonts/',
+              }}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
               loading={

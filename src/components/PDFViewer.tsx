@@ -7,8 +7,8 @@ import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw } from 'lucide-rea
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// PDF.js worker 설정
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// PDF.js worker 설정 - use local worker to avoid CORS and version mismatch
+pdfjs.GlobalWorkerOptions.workerSrc = '/workers/pdf.worker.min.js';
 
 interface PDFViewerProps {
   fileUrl: string;
@@ -130,6 +130,11 @@ export default function PDFViewer({ fileUrl, onPageChange }: PDFViewerProps) {
       <div className="flex-1 overflow-auto flex justify-center items-start p-4 bg-gray-100">
         <Document
           file={fileUrl}
+          options={{
+            cMapUrl: '/pdfjs/cmaps/',
+            cMapPacked: true,
+            standardFontDataUrl: '/pdfjs/standard_fonts/',
+          }}
           onLoadSuccess={onDocumentLoadSuccess}
           onLoadError={onDocumentLoadError}
           loading={

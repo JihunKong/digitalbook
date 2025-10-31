@@ -8,8 +8,8 @@ import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Download, BookOpen } from '
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
-// Set worker for PDF.js
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`
+// Set worker for PDF.js - use local worker to avoid CORS and version mismatch
+pdfjs.GlobalWorkerOptions.workerSrc = '/workers/pdf.worker.min.js'
 
 interface PDFViewerProps {
   url?: string
@@ -128,6 +128,11 @@ export function PDFViewer({
           {pdfSource && (
             <Document
               file={pdfSource}
+              options={{
+                cMapUrl: '/pdfjs/cmaps/',
+                cMapPacked: true,
+                standardFontDataUrl: '/pdfjs/standard_fonts/',
+              }}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
               loading={

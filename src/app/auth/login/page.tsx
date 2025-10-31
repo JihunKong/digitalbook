@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { BookOpen, Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { BookOpen, Mail, Lock, Eye, EyeOff, Chrome } from 'lucide-react'
 
 function LoginContent() {
   const [email, setEmail] = useState('')
@@ -11,6 +11,7 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showTraditionalLogin, setShowTraditionalLogin] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   
@@ -20,7 +21,51 @@ function LoginContent() {
     if (demo === 'teacher' || demo === 'student') {
       handleDemoLogin(demo)
     }
+
+    // Check for OAuth errors
+    const error = searchParams?.get('error')
+    const message = searchParams?.get('message')
+    if (error) {
+      switch (error) {
+        case 'oauth_error':
+          setError('Google 로그인 중 오류가 발생했습니다.')
+          break
+        case 'oauth_denied':
+          setError('Google 로그인이 취소되었습니다.')
+          break
+        case 'missing_token':
+        case 'invalid_token':
+          setError('인증 토큰이 유효하지 않습니다.')
+          break
+        case 'account_exists':
+          setError(message || '이미 등록된 Google 계정입니다. "Google로 로그인" 버튼을 사용해주세요.')
+          break
+        case 'account_not_found':
+          setError(message || '등록되지 않은 Google 계정입니다. "Google로 회원가입" 버튼을 사용해주세요.')
+          break
+        case 'invalid_intent':
+          setError(message || '잘못된 접근입니다.')
+          break
+        default:
+          setError(message || '로그인 중 오류가 발생했습니다.')
+      }
+    }
   }, [searchParams])
+
+  const handleGoogleAuth = async (intent: 'signin' | 'signup') => {
+    setIsLoading(true)
+    setError('')
+
+    try {
+      // Redirect to backend Google OAuth endpoint with intent parameter
+      const authUrl = `${process.env.NEXT_PUBLIC_API_URL || '/api'}/oauth/google?intent=${intent}`
+      window.location.href = authUrl
+    } catch (error: any) {
+      console.error('Google auth error:', error)
+      setError('Google 인증을 시작할 수 없습니다.')
+      setIsLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,8 +119,8 @@ function LoginContent() {
     try {
       // 데모 계정 정보
       const demoCredentials = {
-        teacher: { email: 'purusil@naver.com', password: 'rhdwlgns85' },
-        student: { email: 'student1@test.com', password: 'student123!' }
+        teacher: { email: 'teacher@example.com', password: 'teacher123' },
+        student: { email: 'student1@example.com', password: 'student123' }
       }
 
       const { email, password } = demoCredentials[role]
@@ -138,7 +183,85 @@ function LoginContent() {
             </p>
           </div>
           <div className="p-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Google Authentication Section */}
+            <div className="space-y-3 mb-6">
+              {/* Google Sign In Button */}
+              <button
+                type="button"
+                onClick={() => handleGoogleAuth('signin')}
+                className="w-full flex items-center justify-center py-3 px-4 border-2 border-blue-500 rounded-md shadow-sm text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                    인증 중...
+                  </>
+                ) : (
+                  <>
+                    <Chrome className="h-5 w-5 mr-2 text-blue-500" />
+                    Google로 로그인
+                  </>
+                )}
+              </button>
+
+              {/* Google Sign Up Button */}
+              <button
+                type="button"
+                onClick={() => handleGoogleAuth('signup')}
+                className="w-full flex items-center justify-center py-3 px-4 border-2 border-green-500 rounded-md shadow-sm text-sm font-medium text-green-600 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600 mr-2"></div>
+                    인증 중...
+                  </>
+                ) : (
+                  <>
+                    <Chrome className="h-5 w-5 mr-2 text-green-500" />
+                    Google로 회원가입
+                  </>
+                )}
+              </button>
+
+              <div className="text-center">
+                <p className="text-xs text-gray-500">
+                  Google 계정으로 간편하게 로그인하거나 새 계정을 만드세요
+                </p>
+              </div>
+              
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+                  <span className="block sm:inline">{error}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-500">또는</span>
+              </div>
+            </div>
+
+            {/* Traditional Login Toggle */}
+            <div className="text-center mb-4">
+              <button
+                type="button"
+                onClick={() => setShowTraditionalLogin(!showTraditionalLogin)}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                {showTraditionalLogin ? '간편 로그인으로 돌아가기' : '이메일로 로그인하기'}
+              </button>
+            </div>
+
+            {/* Traditional Login Form */}
+            {showTraditionalLogin && (
+              <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700">이메일</label>
                 <div className="relative">
@@ -178,12 +301,6 @@ function LoginContent() {
                 </div>
               </div>
 
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-                  <span className="block sm:inline">{error}</span>
-                </div>
-              )}
-
               <button
                 type="submit"
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -192,14 +309,16 @@ function LoginContent() {
                 {isLoading ? '로그인 중...' : '로그인'}
               </button>
             </form>
+            )}
 
+            {/* Demo Login Section */}
             <div className="mt-6">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-gray-500">또는</span>
+                  <span className="bg-white px-2 text-gray-500">데모 체험</span>
                 </div>
               </div>
 
@@ -210,7 +329,7 @@ function LoginContent() {
                   onClick={() => handleDemoLogin('teacher')}
                   disabled={isLoading}
                 >
-                  교사 데모 계정으로 시작
+                  교사 데모 계정으로 체험
                 </button>
                 <button
                   type="button"
@@ -218,19 +337,20 @@ function LoginContent() {
                   onClick={() => handleDemoLogin('student')}
                   disabled={isLoading}
                 >
-                  학생 데모 계정으로 시작
+                  학생 데모 계정으로 체험
                 </button>
               </div>
             </div>
 
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
-                계정이 없으신가요?{' '}
-                <Link href="/auth/signup" className="text-blue-600 hover:underline">
-                  회원가입
-                </Link>
+                새로운 계정을 만드시려면{' '}
+                <span className="font-medium">Google로 로그인</span>을 사용하세요
               </p>
-              <Link href="/" className="text-sm text-gray-500 hover:underline">
+              <p className="text-xs text-gray-500 mt-2">
+                Google 계정으로 간편하게 회원가입이 완료됩니다
+              </p>
+              <Link href="/" className="text-sm text-gray-500 hover:underline mt-3 block">
                 홈으로 돌아가기
               </Link>
             </div>

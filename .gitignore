@@ -112,6 +112,11 @@ Thumbs.db
 /backend/uploads/
 /uploads/
 
+# PDF.js static assets (copied from node_modules during build)
+/public/pdfjs/cmaps/
+/public/pdfjs/standard_fonts/
+/public/pdfjs/wasm/
+
 # Backups and archives
 scripts-backup/
 backups/

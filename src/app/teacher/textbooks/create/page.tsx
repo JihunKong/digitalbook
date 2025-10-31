@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { v4 as uuidv4 } from 'uuid'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,11 +13,13 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
 import { EnhancedFileUpload } from '@/components/multimedia/EnhancedFileUpload'
-import { PDFViewer } from '@/components/multimedia/PDFViewer'
-import { 
-  FileText, 
-  Upload, 
-  Settings, 
+import { SecurePDFViewer } from '@/components/multimedia/SecurePDFViewer'
+import { ConceptReviewPanel } from '@/components/concepts/review/ConceptReviewPanel'
+import { useConceptReviewStore } from '@/stores/conceptReviewStore'
+import {
+  FileText,
+  Upload,
+  Settings,
   Sparkles,
   BookOpen,
   Loader2,
@@ -25,7 +28,8 @@ import {
   HelpCircle,
   Type,
   File as FileIcon,
-  Layers
+  Layers,
+  Brain
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api'
@@ -78,8 +82,20 @@ export default function CreateTextbookPage() {
     type: string;
   } | null>(null)
 
+  // Concept extraction state
+  const [isExtractingConcepts, setIsExtractingConcepts] = useState(false)
+  const [conceptsExtracted, setConceptsExtracted] = useState(false)
+  const [tempTextbookId, setTempTextbookId] = useState<string | null>(null)
+  const {
+    concepts,
+    extractionStatus,
+    setTextbookId,
+    setConcepts,
+    reset: resetConceptStore
+  } = useConceptReviewStore()
+
   // Stable callback for file upload completion
-  const handleUploadComplete = useCallback((files: Array<{ id: string; url: string; type: string; name: string; extractedText?: string }>) => {
+  const handleUploadComplete = useCallback(async (files: Array<{ id: string; url: string; type: string; name: string; extractedText?: string }>) => {
     console.log('🔥 Upload complete callback received:', files);
     
     // Handle file upload and extract text content
@@ -106,32 +122,79 @@ export default function CreateTextbookPage() {
         console.log('🔥 uploadedFile state after update:', uploadedFileInfo);
       }, 100);
       
+      // If extracted text is available, call AI analysis
+      let aiAnalysis = null;
+      if (extractedText && extractedText.trim() && extractedText.length > 100) {
+        try {
+          console.log('🧠 Requesting AI analysis for extracted text...');
+          const analysisResponse = await apiClient.analyzePDFMetadata({
+            extractedText: extractedText,
+            fileName: file.name
+          });
+          
+          if (analysisResponse.data) {
+            aiAnalysis = analysisResponse.data;
+            console.log('🧠 AI analysis result:', aiAnalysis);
+            
+            toast({
+              title: '🧠 AI 분석 완료',
+              description: `파일을 분석하여 교과서 정보를 자동으로 채웠습니다.`,
+            });
+          }
+        } catch (error) {
+          console.error('AI analysis failed:', error);
+          // Don't show error toast, just continue without AI analysis
+        }
+      }
+      
       // Get current content type for conditional logic
       setFormData(prev => {
         const currentContentType = prev.contentType;
         console.log('🔥 Current content type:', currentContentType);
         
-        // TEXT 모드에서는 추출된 텍스트를 content 필드에 설정
-        // FILE/MIXED 모드에서는 파일 정보만 저장
-        if (currentContentType === 'TEXT' && extractedText && extractedText.trim()) {
-          console.log('🔥 Setting formData.content with extracted text');
+        // TEXT 모드와 FILE 모드 모두에서 추출된 텍스트를 content 필드에 설정
+        // MIXED 모드에서도 기본 콘텐츠로 사용
+        if (extractedText && extractedText.trim()) {
+          console.log('🔥 Setting formData.content with extracted text for', currentContentType, 'mode');
           
-          toast({
-            title: '파일 업로드 완료',
-            description: `${file.name} 파일에서 텍스트를 성공적으로 추출했습니다. (${extractedText.length}자)`,
-          });
-          
-          return {
+          const newFormData = {
             ...prev,
             content: extractedText
           };
+          
+          // Apply AI analysis results if available
+          if (aiAnalysis) {
+            if (aiAnalysis.title && !prev.title.trim()) {
+              newFormData.title = aiAnalysis.title;
+            }
+            if (aiAnalysis.subject && prev.subject === '국어') { // Only update if still default
+              newFormData.subject = aiAnalysis.subject;
+            }
+            if (aiAnalysis.grade && prev.gradeLevel === 2) { // Only update if still default
+              newFormData.gradeLevel = parseInt(aiAnalysis.grade) || 2;
+            }
+            if (aiAnalysis.description && !prev.description.trim()) {
+              newFormData.description = aiAnalysis.description;
+            }
+          }
+          
+          if (!aiAnalysis) {
+            toast({
+              title: '파일 업로드 완료',
+              description: `${file.name} 파일에서 텍스트를 성공적으로 추출했습니다. (${extractedText.length}자)`,
+            });
+          }
+          
+          return newFormData;
         } else {
+          console.log('🔥 No extracted text available, keeping existing content');
+          
           toast({
             title: '파일 업로드 완료',
             description: `${file.name} 파일이 성공적으로 업로드되었습니다.`,
           });
           
-          return prev; // No content change for FILE/MIXED modes
+          return prev; // No content change if no extracted text
         }
       });
     } else {
@@ -143,8 +206,9 @@ export default function CreateTextbookPage() {
     { number: 1, title: '기본 정보', icon: BookOpen },
     { number: 2, title: '콘텐츠 타입', icon: Layers },
     { number: 3, title: '콘텐츠 입력', icon: FileText },
-    { number: 4, title: 'AI 설정', icon: Settings },
-    { number: 5, title: '미리보기', icon: Sparkles },
+    { number: 4, title: '개념 추출', icon: Brain },
+    { number: 5, title: 'AI 설정', icon: Settings },
+    { number: 6, title: '미리보기', icon: Sparkles },
   ]
 
   const handleNext = async () => {
@@ -155,9 +219,9 @@ export default function CreateTextbookPage() {
       uploadedFile: uploadedFile,
       hasUploadedFile: !!uploadedFile
     });
-    
-    if (currentStep === 4 && !analysisResult) {
-      // Perform analysis when moving to preview step
+
+    if (currentStep === 5 && !analysisResult) {
+      // Perform analysis when moving to preview step (Step 6)
       setIsProcessing(true);
       try {
         const analysis = await analyzeContent();
@@ -265,6 +329,87 @@ export default function CreateTextbookPage() {
     const commonWords = ['한글', '언어', '문학', '글쓰기', '읽기', '문법', '표현'];
     return commonWords.filter(word => content.includes(word)).slice(0, 5);
   };
+
+  const handleExtractConcepts = async () => {
+    if (!formData.content.trim()) {
+      toast({
+        title: '콘텐츠 없음',
+        description: '개념을 추출할 콘텐츠가 없습니다.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsExtractingConcepts(true)
+
+    try {
+      // Generate a valid UUID for the textbook
+      const tempId = uuidv4()
+      setTempTextbookId(tempId)
+      setTextbookId(tempId)
+
+      // Truncate text if it exceeds the backend limit
+      const MAX_CONCEPT_EXTRACTION_LENGTH = 50000
+      const textToExtract = formData.content.substring(0, MAX_CONCEPT_EXTRACTION_LENGTH)
+
+      // Warn user if text was truncated
+      if (formData.content.length > MAX_CONCEPT_EXTRACTION_LENGTH) {
+        toast({
+          title: '텍스트 길이 제한',
+          description: `전체 ${formData.content.length.toLocaleString()}자 중 처음 ${MAX_CONCEPT_EXTRACTION_LENGTH.toLocaleString()}자만 분석합니다.`,
+          variant: 'default',
+        })
+      }
+
+      toast({
+        title: '개념 추출 시작',
+        description: 'AI가 콘텐츠에서 개념을 추출하고 있습니다...',
+      })
+
+      // Call concept extraction API
+      const response = await apiClient.extractConcepts({
+        textbookId: tempId,
+        text: textToExtract,
+        subject: formData.subject,
+        grade: formData.gradeLevel,
+      })
+
+      if (response.error) {
+        throw new Error(response.error.message)
+      }
+
+      if (response.data) {
+        const extractedConcepts = Array.isArray(response.data)
+          ? response.data
+          : (response.data as any).concepts || []
+
+        setConcepts(extractedConcepts)
+        setConceptsExtracted(true)
+
+        toast({
+          title: '개념 추출 완료',
+          description: `${extractedConcepts.length}개의 개념이 추출되었습니다.`,
+        })
+      }
+    } catch (error) {
+      console.error('Concept extraction error:', error)
+      toast({
+        title: '개념 추출 실패',
+        description: error instanceof Error ? error.message : '개념 추출 중 오류가 발생했습니다.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsExtractingConcepts(false)
+    }
+  }
+
+  const handleSkipConceptExtraction = () => {
+    setConceptsExtracted(true)
+    toast({
+      title: '개념 추출 건너뛰기',
+      description: '개념 추출을 건너뛰었습니다. 나중에 추가할 수 있습니다.',
+    })
+  }
 
   const [creationProgress, setCreationProgress] = useState({
     step: '',
@@ -643,22 +788,47 @@ export default function CreateTextbookPage() {
                     fileId,
                     corrected: correctedUrl
                   });
+                  
+                  // FILE 전용 모드에서는 PDF를 더 크게 표시
+                  const isFileOnlyMode = formData.contentType === 'FILE';
+                  
                   return (
-                    <div className="mt-6">
-                      <PDFViewer
+                    <div className={`mt-6 ${isFileOnlyMode ? 'pdf-primary-display' : ''}`}>
+                      {isFileOnlyMode && (
+                        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-blue-600" />
+                            <div>
+                              <h4 className="font-semibold text-blue-900">PDF 파일 중심 모드</h4>
+                              <p className="text-sm text-blue-700">
+                                업로드된 PDF 파일이 교재의 메인 콘텐츠로 사용됩니다. 아래에서 미리보기를 확인하세요.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <SecurePDFViewer
                         fileUrl={correctedUrl}
                         fileName={uploadedFile.name}
-                      onExtractText={(text) => {
-                        // PDF 뷰어에서 추가 텍스트 추출이 가능한 경우
-                        if (formData.contentType === 'TEXT') {
-                          setFormData(prev => ({
-                            ...prev,
-                            content: text
-                          }));
-                        }
-                      }}
-                    />
-                  </div>
+                        onExtractText={(text) => {
+                          // PDF 뷰어에서 추가 텍스트 추출이 가능한 경우
+                          if (formData.contentType === 'TEXT') {
+                            setFormData(prev => ({
+                              ...prev,
+                              content: text
+                            }));
+                          }
+                        }}
+                      />
+                      {isFileOnlyMode && (
+                        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <p className="text-sm text-green-800">
+                            ✅ <strong>PDF 파일이 성공적으로 로드되었습니다.</strong> 
+                            이 PDF가 교재의 주요 학습 자료로 사용됩니다.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   );
                 })()}
 
@@ -695,6 +865,108 @@ export default function CreateTextbookPage() {
             )}
 
             {currentStep === 4 && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                <div className="text-center">
+                  <Brain className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">개념 추출 및 검토</h3>
+                  <p className="text-gray-600">
+                    AI가 콘텐츠에서 핵심 개념을 추출하고 관계를 분석합니다
+                  </p>
+                </div>
+
+                {!conceptsExtracted ? (
+                  <div className="space-y-4">
+                    <Card className="border-blue-200 bg-blue-50">
+                      <CardContent className="pt-6">
+                        <div className="text-center space-y-4">
+                          <p className="text-sm text-blue-800">
+                            개념 추출은 선택사항입니다. 나중에 교과서 편집 페이지에서도 추출할 수 있습니다.
+                          </p>
+                          <div className="flex gap-3 justify-center">
+                            <Button
+                              onClick={handleExtractConcepts}
+                              disabled={isExtractingConcepts || !formData.content.trim()}
+                              className="gap-2"
+                            >
+                              {isExtractingConcepts ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  개념 추출 중...
+                                </>
+                              ) : (
+                                <>
+                                  <Brain className="w-4 h-4" />
+                                  개념 추출하기
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={handleSkipConceptExtraction}
+                              disabled={isExtractingConcepts}
+                            >
+                              건너뛰기
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {!formData.content.trim() && (
+                      <Card className="border-yellow-200 bg-yellow-50">
+                        <CardContent className="pt-4">
+                          <p className="text-sm text-yellow-800 text-center">
+                            개념을 추출하려면 Step 3에서 콘텐츠를 입력해주세요.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Card className="border-green-200 bg-green-50">
+                      <CardContent className="pt-4">
+                        <div className="text-center">
+                          <p className="text-sm text-green-800">
+                            ✓ {concepts.length > 0 ? `${concepts.length}개의 개념이 추출되었습니다.` : '개념 추출을 건너뛰었습니다.'}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {concepts.length > 0 && tempTextbookId && (
+                      <div className="h-[500px] border rounded-lg overflow-hidden">
+                        <ConceptReviewPanel
+                          textbookId={tempTextbookId}
+                          isTeacher={true}
+                        />
+                      </div>
+                    )}
+
+                    {concepts.length > 0 && (
+                      <div className="flex gap-2 justify-center">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setConceptsExtracted(false)
+                            resetConceptStore()
+                          }}
+                        >
+                          다시 추출
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {currentStep === 5 && (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -777,7 +1049,7 @@ export default function CreateTextbookPage() {
               </motion.div>
             )}
 
-            {currentStep === 5 && analysisResult && (
+            {currentStep === 6 && analysisResult && (
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -1010,38 +1282,30 @@ export default function CreateTextbookPage() {
             <Button
               onClick={handleNext}
               disabled={(() => {
-                // 4단계에서는 항상 활성화 (AI 설정은 선택사항)
+                // 4단계: 개념 추출 - 추출 완료 또는 건너뛰기 필요
                 if (currentStep === 4) {
-                  console.log('🟢 STEP 4 - Button ENABLED (AI settings are optional)');
+                  return isExtractingConcepts || !conceptsExtracted;
+                }
+
+                // 5단계: AI 설정은 항상 활성화 (선택사항)
+                if (currentStep === 5) {
                   return false;
                 }
-                
+
                 // 1단계: 제목 필수
                 const isStep1Invalid = currentStep === 1 && !formData.title.trim();
-                
+
                 // 3단계: 콘텐츠 타입별 검증
                 const isStep3TextModeInvalid = currentStep === 3 && formData.contentType !== 'FILE' && !formData.content.trim();
                 const isStep3FileModeInvalid = currentStep === 3 && formData.contentType === 'FILE' && !uploadedFile;
-                
+
                 const shouldDisable = isProcessing || isStep1Invalid || isStep3TextModeInvalid || isStep3FileModeInvalid;
-                
-                console.log('🔥 Next button validation:', {
-                  currentStep,
-                  isProcessing,
-                  isStep1Invalid,
-                  isStep3TextModeInvalid,
-                  isStep3FileModeInvalid,
-                  shouldDisable,
-                  contentType: formData.contentType,
-                  hasContent: !!formData.content.trim(),
-                  hasUploadedFile: !!uploadedFile
-                });
-                
+
                 return shouldDisable;
               })()}
               className="gap-2"
             >
-              {isProcessing && currentStep === 4 ? (
+              {isProcessing && currentStep === 5 ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   분석 중...
