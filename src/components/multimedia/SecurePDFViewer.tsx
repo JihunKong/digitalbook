@@ -69,6 +69,16 @@ export function SecurePDFViewer({
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Debug logging for PDF loading
+  useEffect(() => {
+    const authToken = getAuthToken()
+    console.log('🔍 SecurePDFViewer Debug Info:')
+    console.log('  - File URL:', fileUrl)
+    console.log('  - File Name:', fileName)
+    console.log('  - Auth Token:', authToken ? `Present (${authToken.substring(0, 20)}...)` : 'MISSING')
+    console.log('  - Window Location:', typeof window !== 'undefined' ? window.location.href : 'SSR')
+  }, [fileUrl, fileName])
+
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages)
     setLoading(false)
