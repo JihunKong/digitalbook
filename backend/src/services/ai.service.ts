@@ -651,6 +651,121 @@ ${teacherCriteria.focusAreas.join('\n')}
       throw error;
     }
   }
+
+  // PDF 교과서 메타데이터 자동 분석 및 추출
+  async analyzePDFMetadata(extractedText: string, fileName?: string) {
+    try {
+      const systemPrompt = `당신은 교육 자료 분석 전문가입니다. 
+      PDF 교과서의 내용을 분석하여 교사가 교과서 정보를 쉽게 설정할 수 있도록 메타데이터를 추출해주세요.
+      
+      한국의 교육과정에 맞춰 분석하고, 정확하지 않은 정보보다는 추론 가능한 범위에서 제안해주세요.`;
+
+      const analysisPrompt = `다음 PDF 교과서 내용을 분석하여 메타데이터를 추출해주세요:
+
+파일명: ${fileName || '알 수 없음'}
+추출된 텍스트 (처음 2000자):
+${extractedText.substring(0, 2000)}
+
+다음 JSON 형식으로 응답해주세요:
+{
+  "title": "교과서 제목 추천 (최대 50자)",
+  "subject": "과목 (국어/수학/과학/사회/영어/도덕/체육/음악/미술/실과 중 하나)",
+  "grade": "학년 (1-6 중 하나, 숫자만)",
+  "description": "교과서 설명 (2-3줄, 최대 200자)",
+  "estimatedPages": "예상 페이지 수 (숫자)",
+  "mainTopics": ["주요 주제1", "주요 주제2", "주요 주제3"],
+  "difficulty": "난이도 (쉬움/보통/어려움)",
+  "confidence": "분석 확신도 (0-100 숫자)"
+}
+
+주의사항:
+- 제목이 명확하지 않으면 내용을 바탕으로 적절한 제목을 생성하세요
+- 과목은 내용을 분석하여 가장 적합한 것을 선택하세요
+- 학년은 어휘 수준과 내용 복잡도로 판단하세요
+- 확신이 없는 항목은 confidence를 낮게 설정하세요`;
+
+      if (this.mockMode) {
+        // Mock response for development
+        return {
+          title: fileName ? fileName.replace(/\.[^/.]+$/, "") : "교과서 제목",
+          subject: "국어",
+          grade: "3",
+          description: "AI가 분석한 교과서입니다. 실제 분석을 위해 OpenAI API 키가 필요합니다.",
+          estimatedPages: 20,
+          mainTopics: ["읽기", "쓰기", "말하기"],
+          difficulty: "보통",
+          confidence: 50
+        };
+      }
+
+      const response = await this.openai!.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: analysisPrompt }
+        ],
+        temperature: 0.3, // Lower temperature for more consistent analysis
+        max_tokens: 1000,
+      });
+
+      const content = response.choices[0].message.content;
+      if (!content) {
+        throw new Error('AI 분석 결과가 없습니다.');
+      }
+
+      // Parse JSON response
+      const analysis = JSON.parse(content);
+      
+      // Validate and normalize the response
+      return {
+        title: analysis.title || "새 교과서",
+        subject: this.validateSubject(analysis.subject),
+        grade: this.validateGrade(analysis.grade),
+        description: analysis.description || "",
+        estimatedPages: Math.max(1, parseInt(analysis.estimatedPages) || 1),
+        mainTopics: Array.isArray(analysis.mainTopics) ? analysis.mainTopics.slice(0, 5) : [],
+        difficulty: this.validateDifficulty(analysis.difficulty),
+        confidence: Math.max(0, Math.min(100, parseInt(analysis.confidence) || 50))
+      };
+
+    } catch (error) {
+      logger.error('Failed to analyze PDF metadata:', error);
+      
+      // Fallback analysis based on filename and basic text analysis
+      return this.createFallbackAnalysis(extractedText, fileName);
+    }
+  }
+
+  private validateSubject(subject: string): string {
+    const validSubjects = ['국어', '수학', '과학', '사회', '영어', '도덕', '체육', '음악', '미술', '실과'];
+    return validSubjects.includes(subject) ? subject : '국어';
+  }
+
+  private validateGrade(grade: string | number): string {
+    const gradeNum = typeof grade === 'string' ? parseInt(grade) : grade;
+    return (gradeNum >= 1 && gradeNum <= 6) ? gradeNum.toString() : '3';
+  }
+
+  private validateDifficulty(difficulty: string): string {
+    const validDifficulties = ['쉬움', '보통', '어려움'];
+    return validDifficulties.includes(difficulty) ? difficulty : '보통';
+  }
+
+  private createFallbackAnalysis(extractedText: string, fileName?: string) {
+    const wordCount = extractedText.split(/\s+/).length;
+    const estimatedPages = Math.ceil(wordCount / 300); // Rough estimate
+    
+    return {
+      title: fileName ? fileName.replace(/\.[^/.]+$/, "") : "새 교과서",
+      subject: "국어",
+      grade: "3",
+      description: "업로드된 PDF 교과서입니다. 세부 정보를 수정해 주세요.",
+      estimatedPages: Math.max(1, estimatedPages),
+      mainTopics: [],
+      difficulty: "보통",
+      confidence: 20
+    };
+  }
 }
 
 export const aiService = new AIService();

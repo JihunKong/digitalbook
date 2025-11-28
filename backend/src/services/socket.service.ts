@@ -40,10 +40,24 @@ export class SocketService {
 
   constructor(io: Server) {
     this.io = io;
-    this.redis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
+    const redisUrl = process.env.REDIS_URL || 'redis://digitalbook-redis:6379';
+    this.redis = new Redis(redisUrl, {
+      retryStrategy: (times) => {
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+      },
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
     });
+    
+    this.redis.on('connect', () => {
+      logger.info('SocketService Redis connected successfully');
+    });
+    
+    this.redis.on('error', (error) => {
+      logger.error('SocketService Redis connection error:', error);
+    });
+    
     this.setupMiddleware();
     this.setupEventHandlers();
   }

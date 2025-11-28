@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+// import passport from './config/passport'; // Temporarily disabled - passport package not installed
 import dotenv from 'dotenv';
 import path from 'path';
 import { createServer } from 'http';
@@ -64,7 +65,14 @@ app.use(helmet({
 // CORS configuration with cookie support
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000').split(',');
+    const baseOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000').split(',');
+    // Add additional localhost variations
+    const allowedOrigins = [
+      ...baseOrigins,
+      'http://localhost',
+      'http://localhost:80',
+      'http://localhost:3000'
+    ];
     // Allow requests with no origin (e.g., mobile apps, Postman)
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -83,6 +91,9 @@ app.use(cors(corsOptions));
 
 // Cookie parser middleware - MUST come before body parsers
 app.use(cookieParser(process.env.COOKIE_SECRET || 'cookie-secret-key'));
+
+// Passport middleware - must come after cookie parser
+// app.use(passport.initialize()); // Temporarily disabled - passport not configured
 
 // Body parsing middleware with size limits - increased to match file upload limits
 app.use(express.json({ 

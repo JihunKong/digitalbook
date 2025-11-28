@@ -309,14 +309,27 @@ class FileController {
         requestPath: req.path,
         requestMethod: req.method
       });
-      
+
+      // CRITICAL FIX: Check authentication BEFORE database query
+      // Previously, the query ran first with undefined userId, always returning null
+      if (!userId) {
+        console.warn('🔐 Authentication required for file access:', {
+          fileId,
+          hasUser: !!(req as any).user,
+          authHeader: req.headers.authorization ? 'present' : 'missing',
+          hasCookies: !!req.headers.cookie
+        });
+        throw new AppError('Authentication required to access files', 401);
+      }
+
+      // Now query with guaranteed valid userId
       const file = await prisma.file.findFirst({
         where: {
           id: fileId,
           uploadedBy: userId,
         },
       });
-      
+
       if (!file) {
         console.warn('📁 File not found in database:', {
           fileId,
@@ -324,7 +337,24 @@ class FileController {
           hasUser: !!(req as any).user,
           searchCriteria: { id: fileId, uploadedBy: userId }
         });
-        throw new AppError('File not found', 404);
+        
+        // Check if file exists for any user (for debugging)
+        const fileExistsForAnyUser = await prisma.file.findFirst({
+          where: { id: fileId },
+          select: { id: true, uploadedBy: true, originalName: true }
+        });
+        
+        if (fileExistsForAnyUser) {
+          console.warn('📁 File exists but belongs to different user:', {
+            fileId,
+            fileOwner: fileExistsForAnyUser.uploadedBy,
+            currentUser: userId,
+            fileName: fileExistsForAnyUser.originalName
+          });
+          throw new AppError('File access denied - you can only access files you uploaded', 403);
+        } else {
+          throw new AppError('File not found', 404);
+        }
       }
 
       console.log('✅ File found in database:', {

@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl"]
 }
 
@@ -8,43 +8,589 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ==========================================
-// 통합 User 모델 (Admin, Teacher, Student)
-// ==========================================
 model User {
-  id            String      @id @default(uuid())
-  email         String      @unique
-  password      String?     // Guest나 소셜 로그인은 null 가능
-  name          String
-  role          UserRole    @default(STUDENT)
-  isActive      Boolean     @default(true)
-  lastLoginAt   DateTime?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  
-  // 프로필 정보 (역할별)
-  teacherProfile TeacherProfile?
-  studentProfile StudentProfile?
-  adminProfile   AdminProfile?
-  
-  // 관계
-  sessions       Session[]
-  notifications  Notification[]
-  activities     UserActivity[]
-  
-  // PDF and Learning Activity relations
-  uploadedPDFs      PDFTextbook[]     @relation("UploadedPDFs")
-  pageViews         PageView[]        @relation("StudentPageViews")
-  pdfPageViews      PdfPageView[]     @relation("PdfPageViews")
-  createdActivities Activity[]        @relation("CreatedActivities")
+  id                String             @id @default(uuid())
+  email             String             @unique
+  password          String?
+  name              String
+  role              UserRole           @default(STUDENT)
+  provider          AuthProvider       @default(LOCAL)
+  providerId        String?
+  termsAcceptedAt   DateTime?
+  isActive          Boolean            @default(true)
+  lastLoginAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  createdActivities Activity[]         @relation("CreatedActivities")
   activityResponses ActivityResponse[] @relation("StudentResponses")
-  groupMemberships  GroupMember[]     @relation("GroupMemberships")
-  
-  // 채팅 관계
-  chatSessions      ChatSession[]     @relation("UserChatSessions")
-  
+  adminProfile      AdminProfile?
+  chatSessions      ChatSession[]      @relation("UserChatSessions")
+  groupMemberships  GroupMember[]      @relation("GroupMemberships")
+  notifications     Notification[]
+  uploadedPDFs      PDFTextbook[]      @relation("UploadedPDFs")
+  pageViews         PageView[]         @relation("StudentPageViews")
+  pdfPageViews      PdfPageView[]      @relation("PdfPageViews")
+  sessions          Session[]
+  studentProfile    StudentProfile?
+  teacherProfile    TeacherProfile?
+  activities        UserActivity[]
+
   @@index([email])
   @@index([role])
+  @@index([provider, providerId])
+}
+
+model TeacherProfile {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  school    String?
+  subject   String?
+  grade     String?
+  bio       String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  classes   Class[]
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  textbooks Textbook[]
+}
+
+model StudentProfile {
+  id              String            @id @default(uuid())
+  userId          String            @unique
+  studentId       String?
+  school          String?
+  grade           String?
+  className       String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  submissions     Assignment[]
+  enrollments     ClassEnrollment[]
+  questions       Question[]
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyRecords    StudyRecord[]
+  conceptMasteries ConceptMastery[]
+}
+
+model AdminProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  department  String?
+  permissions Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Class {
+  id            String            @id @default(uuid())
+  code          String            @unique @db.VarChar(6)
+  name          String
+  description   String?
+  teacherId     String
+  subject       String?
+  grade         String?
+  semester      String?
+  isActive      Boolean           @default(true)
+  expiresAt     DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  activities    Activity[]
+  announcements Announcement[]
+  assignments   Assignment[]
+  teacher       TeacherProfile    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  enrollments   ClassEnrollment[]
+  textbooks     ClassTextbook[]
+  pdfTextbooks  PDFTextbook[]
+  studentGroups StudentGroup[]
+
+  @@index([code])
+  @@index([teacherId])
+}
+
+model ClassEnrollment {
+  id         String         @id @default(uuid())
+  classId    String
+  studentId  String
+  enrolledAt DateTime       @default(now())
+  isActive   Boolean        @default(true)
+  class      Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+  @@index([classId])
+  @@index([studentId])
+}
+
+model Textbook {
+  id          String          @id @default(uuid())
+  title       String
+  description String?
+  content     Json
+  metadata    Json?
+  authorId    String
+  isPublic    Boolean         @default(false)
+  isTemplate  Boolean         @default(false)
+  aiGenerated Boolean         @default(false)
+  aiModel     String?
+  aiPrompt    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  classes     ClassTextbook[]
+  author      TeacherProfile  @relation(fields: [authorId], references: [id])
+  pages       TextbookPage[]
+  concepts    Concept[]       @relation("TextbookConcepts")
+
+  @@index([authorId])
+  @@index([isPublic])
+}
+
+model ClassTextbook {
+  id         String   @id @default(uuid())
+  classId    String
+  textbookId String
+  assignedAt DateTime @default(now())
+  class      Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  textbook   Textbook @relation(fields: [textbookId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, textbookId])
+}
+
+model TextbookPage {
+  id           String          @id @default(uuid())
+  textbookId   String
+  pageNumber   Int
+  title        String?
+  content      Json
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  contentType  ContentType     @default(TEXT)
+  fileId       String?
+  textContent  String?
+  chatSessions ChatSession[]
+  file         File?           @relation("PageFiles", fields: [fileId], references: [id])
+  textbook     Textbook        @relation(fields: [textbookId], references: [id], onDelete: Cascade)
+  embeddings   PageEmbedding[]
+  concepts     Concept[]       @relation("PageConcepts")
+
+  @@unique([textbookId, pageNumber])
+  @@index([textbookId])
+  @@index([contentType])
+}
+
+model Assignment {
+  id          String          @id @default(uuid())
+  classId     String
+  title       String
+  description String
+  type        AssignmentType
+  dueDate     DateTime?
+  points      Int?
+  studentId   String?
+  submittedAt DateTime?
+  submission  Json?
+  feedback    String?
+  score       Int?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  class       Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student     StudentProfile? @relation(fields: [studentId], references: [id])
+
+  @@index([classId])
+  @@index([studentId])
+}
+
+model StudyRecord {
+  id           String         @id @default(uuid())
+  studentId    String
+  activityType String
+  activityData Json
+  duration     Int?
+  score        Float?
+  createdAt    DateTime       @default(now())
+  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([createdAt])
+}
+
+model Question {
+  id           String         @id @default(uuid())
+  studentId    String
+  question     String
+  context      Json?
+  aiResponse   String?
+  aiModel      String?
+  responseTime Int?
+  questionType QuestionType
+  difficulty   Int?
+  createdAt    DateTime       @default(now())
+  student      StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+model Announcement {
+  id        String   @id @default(uuid())
+  classId   String
+  title     String
+  content   String
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@index([classId])
+}
+
+model UserActivity {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  details   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  token        String   @unique
+  userId       String
+  ipAddress    String?
+  userAgent    String?
+  lastActivity DateTime @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  uploaderId   String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([uploaderId])
+}
+
+model File {
+  id            String         @id @default(uuid())
+  filename      String
+  originalName  String
+  mimeType      String
+  size          Int
+  path          String
+  uploadedBy    String
+  extractedText String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  pageFiles     TextbookPage[] @relation("PageFiles")
+
+  @@index([uploadedBy])
+}
+
+model PDFTextbook {
+  id             String        @id @default(uuid())
+  classId        String
+  filename       String
+  fileUrl        String
+  fileSize       Int
+  totalPages     Int?
+  parsedContent  Json?
+  status         String        @default("processing")
+  uploadedBy     String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  activities     Activity[]
+  class          Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  uploadedByUser User          @relation("UploadedPDFs", fields: [uploadedBy], references: [id])
+  pageViews      PageView[]
+  pdfPageViews   PdfPageView[] @relation("PdfViews")
+
+  @@index([classId])
+  @@index([uploadedBy])
+  @@index([status])
+}
+
+model PageView {
+  id         String      @id @default(uuid())
+  studentId  String
+  textbookId String
+  pageNumber Int
+  duration   Int?
+  viewedAt   DateTime    @default(now())
+  student    User        @relation("StudentPageViews", fields: [studentId], references: [id])
+  textbook   PDFTextbook @relation(fields: [textbookId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([textbookId])
+  @@index([viewedAt])
+}
+
+model Activity {
+  id            String             @id @default(uuid())
+  classId       String
+  textbookId    String?
+  title         String
+  description   String?
+  type          String             @default("fill_in_blank")
+  questions     Json
+  createdBy     String
+  modifiable    Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  class         Class              @relation(fields: [classId], references: [id], onDelete: Cascade)
+  createdByUser User               @relation("CreatedActivities", fields: [createdBy], references: [id])
+  textbook      PDFTextbook?       @relation(fields: [textbookId], references: [id])
+  responses     ActivityResponse[]
+
+  @@index([classId])
+  @@index([textbookId])
+  @@index([createdBy])
+}
+
+model ActivityResponse {
+  id          String    @id @default(uuid())
+  activityId  String
+  studentId   String
+  answers     Json
+  score       Float?
+  feedback    String?
+  submittedAt DateTime  @default(now())
+  gradedAt    DateTime?
+  activity    Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student     User      @relation("StudentResponses", fields: [studentId], references: [id])
+
+  @@unique([activityId, studentId])
+  @@index([activityId])
+  @@index([studentId])
+  @@index([submittedAt])
+}
+
+model StudentGroup {
+  id          String                 @id @default(uuid())
+  classId     String
+  name        String
+  description String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  sessions    CollaborationSession[]
+  members     GroupMember[]
+  class       Class                  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@index([classId])
+}
+
+model GroupMember {
+  id        String       @id @default(uuid())
+  groupId   String
+  studentId String
+  role      String       @default("member")
+  joinedAt  DateTime     @default(now())
+  group     StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student   User         @relation("GroupMemberships", fields: [studentId], references: [id])
+
+  @@unique([groupId, studentId])
+  @@index([groupId])
+  @@index([studentId])
+}
+
+model CollaborationSession {
+  id          String       @id @default(uuid())
+  groupId     String
+  activityId  String?
+  status      String       @default("active")
+  sharedNotes Json?
+  schedule    Json?
+  startedAt   DateTime     @default(now())
+  endedAt     DateTime?
+  group       StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@index([status])
+}
+
+model PdfPageView {
+  id         String       @id @default(uuid())
+  userId     String?
+  guestId    String?
+  pdfId      String
+  pageNumber Int
+  timeSpent  Int
+  viewedAt   DateTime     @default(now())
+  guest      GuestAccess? @relation("GuestPdfViews", fields: [guestId], references: [id])
+  pdf        PDFTextbook  @relation("PdfViews", fields: [pdfId], references: [id], onDelete: Cascade)
+  user       User?        @relation("PdfPageViews", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([guestId])
+  @@index([pdfId])
+  @@index([pageNumber])
+  @@index([viewedAt])
+}
+
+model GuestAccess {
+  id            String        @id @default(uuid())
+  accessCode    String        @unique
+  textbookId    String?
+  expiresAt     DateTime
+  maxQuestions  Int           @default(50)
+  questionsUsed Int           @default(0)
+  metadata      Json?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  sessionId     String?       @unique
+  studentName   String?
+  chatSessions  ChatSession[] @relation("GuestChatSessions")
+  pdfViews      PdfPageView[] @relation("GuestPdfViews")
+
+  @@index([accessCode])
+  @@index([sessionId])
+  @@index([expiresAt])
+}
+
+model PageEmbedding {
+  id         String       @id @default(uuid())
+  pageId     String
+  chunk      String
+  embedding  Float[]
+  chunkIndex Int
+  metadata   Json?
+  createdAt  DateTime     @default(now())
+  page       TextbookPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, chunkIndex])
+  @@index([pageId])
+  @@map("page_embeddings")
+}
+
+model ChatSession {
+  id          String        @id @default(uuid())
+  userId      String?
+  guestId     String?
+  pageId      String
+  sessionName String?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  messages    ChatMessage[]
+  guest       GuestAccess?  @relation("GuestChatSessions", fields: [guestId], references: [id])
+  page        TextbookPage  @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  user        User?         @relation("UserChatSessions", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([guestId])
+  @@index([pageId])
+  @@index([isActive])
+}
+
+model ChatMessage {
+  id              String      @id @default(uuid())
+  sessionId       String
+  role            MessageRole
+  content         String
+  metadata        Json?
+  retrievedChunks String[]    @default([])
+  confidence      Float?
+  createdAt       DateTime    @default(now())
+  session         ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([role])
+  @@index([createdAt])
+}
+
+model Concept {
+  id                 String             @id @default(uuid())
+  name               String
+  description        String?
+  difficulty         Int                @default(1) // 1-5 scale
+  category           String? // e.g., "Mathematics", "Science", "Language"
+  keywords           String[] // Related keywords for search
+  learningObjectives String[] // What students should learn
+  inquiryQuestions   String[] // Socratic questions for this concept
+  textbookId         String?
+  pageId             String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  textbook           Textbook?          @relation("TextbookConcepts", fields: [textbookId], references: [id], onDelete: Cascade)
+  page               TextbookPage?      @relation("PageConcepts", fields: [pageId], references: [id], onDelete: Cascade)
+  masteries          ConceptMastery[]
+  relationsFrom      ConceptRelation[]  @relation("ConceptFrom")
+  relationsTo        ConceptRelation[]  @relation("ConceptTo")
+
+  @@index([textbookId])
+  @@index([pageId])
+  @@index([difficulty])
+  @@index([category])
+}
+
+model ConceptRelation {
+  id          String       @id @default(uuid())
+  fromId      String
+  toId        String
+  type        RelationType
+  strength    Float?       @default(1.0) // 0.0-1.0, how strong is the relationship
+  description String?
+  createdAt   DateTime     @default(now())
+  fromConcept Concept      @relation("ConceptFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toConcept   Concept      @relation("ConceptTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId, type])
+  @@index([fromId])
+  @@index([toId])
+  @@index([type])
+}
+
+model ConceptMastery {
+  id              String         @id @default(uuid())
+  studentId       String
+  conceptId       String
+  masteryLevel    Int            @default(1) // 1-5: Introduction, Developing, Proficient, Advanced, Expert
+  confidence      Float?         @default(0.5) // AI's confidence in this assessment
+  evidenceCount   Int            @default(0) // Number of learning evidences
+  lastEvidence    Json? // Most recent learning evidence (question, answer, score)
+  progressHistory Json? // Historical mastery levels over time
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  concept         Concept        @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, conceptId])
+  @@index([studentId])
+  @@index([conceptId])
+  @@index([masteryLevel])
+  @@index([updatedAt])
 }
 
 enum UserRole {
@@ -54,205 +600,9 @@ enum UserRole {
   GUEST
 }
 
-// ==========================================
-// 역할별 프로필
-// ==========================================
-model TeacherProfile {
-  id            String     @id @default(uuid())
-  userId        String     @unique
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  school        String?
-  subject       String?
-  grade         String?
-  bio           String?    @db.Text
-  
-  // 교사 관련 데이터
-  classes       Class[]
-  textbooks     Textbook[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-}
-
-model StudentProfile {
-  id            String     @id @default(uuid())
-  userId        String     @unique
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  studentId     String?    // 학번
-  school        String?
-  grade         String?
-  className     String?
-  
-  // 학생 관련 데이터
-  enrollments   ClassEnrollment[]
-  submissions   Assignment[]
-  studyRecords  StudyRecord[]
-  questions     Question[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-}
-
-model AdminProfile {
-  id            String     @id @default(uuid())
-  userId        String     @unique
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  department    String?
-  permissions   Json?      // 세부 권한 설정
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-}
-
-// ==========================================
-// 교육 관련 모델
-// ==========================================
-model Class {
-  id            String     @id @default(uuid())
-  code          String     @unique @db.VarChar(6)
-  name          String
-  description   String?    @db.Text
-  teacherId     String
-  teacher       TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  
-  // 수업 설정
-  subject       String?
-  grade         String?
-  semester      String?
-  isActive      Boolean    @default(true)
-  expiresAt     DateTime?
-  
-  // 관계
-  enrollments   ClassEnrollment[]
-  textbooks     ClassTextbook[]
-  assignments   Assignment[]
-  announcements Announcement[]
-  pdfTextbooks  PDFTextbook[]
-  activities    Activity[]
-  studentGroups StudentGroup[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@index([code])
-  @@index([teacherId])
-}
-
-model ClassEnrollment {
-  id            String     @id @default(uuid())
-  classId       String
-  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  studentId     String
-  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
-  enrolledAt    DateTime   @default(now())
-  isActive      Boolean    @default(true)
-  
-  @@unique([classId, studentId])
-  @@index([classId])
-  @@index([studentId])
-}
-
-model Textbook {
-  id            String     @id @default(uuid())
-  title         String
-  description   String?    @db.Text
-  content       Json       // 구조화된 교과서 내용
-  metadata      Json?      // 추가 메타데이터
-  
-  authorId      String
-  author        TeacherProfile @relation(fields: [authorId], references: [id])
-  
-  // 공개 설정
-  isPublic      Boolean    @default(false)
-  isTemplate    Boolean    @default(false)
-  
-  // AI 생성 정보
-  aiGenerated   Boolean    @default(false)
-  aiModel       String?
-  aiPrompt      String?    @db.Text
-  
-  // 관계
-  classes       ClassTextbook[]
-  pages         TextbookPage[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@index([authorId])
-  @@index([isPublic])
-}
-
-model ClassTextbook {
-  id            String     @id @default(uuid())
-  classId       String
-  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  textbookId    String
-  textbook      Textbook   @relation(fields: [textbookId], references: [id], onDelete: Cascade)
-  
-  assignedAt    DateTime   @default(now())
-  
-  @@unique([classId, textbookId])
-}
-
-model TextbookPage {
-  id            String     @id @default(uuid())
-  textbookId    String
-  textbook      Textbook   @relation(fields: [textbookId], references: [id], onDelete: Cascade)
-  
-  pageNumber    Int
-  title         String?
-  content       Json       // 페이지 내용 (텍스트, 이미지, 비디오 등)
-  
-  // 혼합 콘텐츠 지원
-  contentType   ContentType @default(TEXT)
-  textContent   String?    @db.Text  // 순수 텍스트 콘텐츠
-  fileId        String?    // File 참조 (PDF, 이미지 등)
-  file          File?      @relation("PageFiles", fields: [fileId], references: [id])
-  
-  // RAG 및 챗봇 관계
-  embeddings    PageEmbedding[]
-  chatSessions  ChatSession[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@unique([textbookId, pageNumber])
-  @@index([textbookId])
-  @@index([contentType])
-}
-
-// ==========================================
-// 과제 및 평가
-// ==========================================
-model Assignment {
-  id            String     @id @default(uuid())
-  classId       String
-  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  
-  title         String
-  description   String     @db.Text
-  type          AssignmentType
-  
-  dueDate       DateTime?
-  points        Int?
-  
-  // 제출 정보
-  studentId     String?
-  student       StudentProfile? @relation(fields: [studentId], references: [id])
-  submittedAt   DateTime?
-  submission    Json?      // 제출 내용
-  feedback      String?    @db.Text
-  score         Int?
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@index([classId])
-  @@index([studentId])
+enum AuthProvider {
+  LOCAL
+  GOOGLE
 }
 
 enum AssignmentType {
@@ -263,77 +613,12 @@ enum AssignmentType {
   ESSAY
 }
 
-// ==========================================
-// 학습 기록 및 분석
-// ==========================================
-model StudyRecord {
-  id            String     @id @default(uuid())
-  studentId     String
-  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
-  activityType  String     // 읽기, 문제풀기, 토론 등
-  activityData  Json       // 활동 상세 데이터
-  duration      Int?       // 활동 시간 (초)
-  score         Float?     // 점수 (해당되는 경우)
-  
-  createdAt     DateTime   @default(now())
-  
-  @@index([studentId])
-  @@index([createdAt])
-}
-
-// ==========================================
-// 질문 및 답변
-// ==========================================
-model Question {
-  id            String     @id @default(uuid())
-  studentId     String
-  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  
-  question      String     @db.Text
-  context       Json?      // 질문 컨텍스트 (페이지, 단원 등)
-  
-  // AI 응답
-  aiResponse    String?    @db.Text
-  aiModel       String?
-  responseTime  Int?       // 응답 시간 (ms)
-  
-  // 질문 분류
-  questionType  QuestionType
-  difficulty    Int?       // 1-5
-  
-  createdAt     DateTime   @default(now())
-  
-  @@index([studentId])
-  @@index([createdAt])
-}
-
 enum QuestionType {
-  KNOWLEDGE     // 단순 지식 질문
-  REASONING     // 추론 질문  
-  CRITICAL      // 비판적 사고 질문
-  CREATIVE      // 창조적 사고 질문
-  REFLECTION    // 성찰적 질문
-}
-
-// ==========================================
-// 알림 및 공지
-// ==========================================
-model Notification {
-  id            String     @id @default(uuid())
-  userId        String
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  title         String
-  message       String     @db.Text
-  type          NotificationType
-  isRead        Boolean    @default(false)
-  metadata      Json?      // 추가 데이터
-  
-  createdAt     DateTime   @default(now())
-  
-  @@index([userId])
-  @@index([isRead])
+  KNOWLEDGE
+  REASONING
+  CRITICAL
+  CREATIVE
+  REFLECTION
 }
 
 enum NotificationType {
@@ -344,377 +629,22 @@ enum NotificationType {
   SYSTEM
 }
 
-model Announcement {
-  id            String     @id @default(uuid())
-  classId       String
-  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  
-  title         String
-  content       String     @db.Text
-  isPinned      Boolean    @default(false)
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@index([classId])
-}
-
-// ==========================================
-// 사용자 활동 추적
-// ==========================================
-model UserActivity {
-  id            String     @id @default(uuid())
-  userId        String
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  action        String     // login, logout, view_page, submit_assignment 등
-  details       Json?      // 활동 상세 정보
-  ipAddress     String?
-  userAgent     String?
-  
-  createdAt     DateTime   @default(now())
-  
-  @@index([userId])
-  @@index([action])
-  @@index([createdAt])
-}
-
-// ==========================================
-// 세션 관리
-// ==========================================
-model Session {
-  id            String     @id @default(uuid())
-  token         String     @unique
-  userId        String
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  ipAddress     String?
-  userAgent     String?
-  lastActivity  DateTime   @default(now())
-  expiresAt     DateTime
-  
-  createdAt     DateTime   @default(now())
-  
-  @@index([token])
-  @@index([userId])
-  @@index([expiresAt])
-}
-
-// ==========================================
-// 문서 및 미디어
-// ==========================================
-model Document {
-  id            String     @id @default(uuid())
-  filename      String
-  originalName  String
-  mimeType      String
-  size          Int
-  path          String     // 파일 저장 경로
-  
-  uploaderId    String
-  metadata      Json?      // 추가 메타데이터
-  
-  createdAt     DateTime   @default(now())
-  
-  @@index([uploaderId])
-}
-
-// File model for document uploads with text extraction
-model File {
-  id            String     @id @default(uuid())
-  filename      String
-  originalName  String
-  mimeType      String
-  size          Int
-  path          String
-  uploadedBy    String
-  extractedText String?    @db.Text
-  
-  // 페이지 관계
-  pageFiles     TextbookPage[] @relation("PageFiles")
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@index([uploadedBy])
-}
-
-// ==========================================
-// PDF Textbook Management
-// ==========================================
-model PDFTextbook {
-  id            String     @id @default(uuid())
-  classId       String
-  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  filename      String
-  fileUrl       String
-  fileSize      Int
-  totalPages    Int?
-  parsedContent Json?      // Stores extracted text by page
-  status        String     @default("processing") // processing, completed, failed
-  
-  uploadedBy    String
-  uploadedByUser User       @relation("UploadedPDFs", fields: [uploadedBy], references: [id])
-  
-  pageViews     PageView[]
-  pdfPageViews  PdfPageView[] @relation("PdfViews")
-  activities    Activity[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@index([classId])
-  @@index([uploadedBy])
-  @@index([status])
-}
-
-// Page viewing tracking
-model PageView {
-  id            String     @id @default(uuid())
-  studentId     String
-  student       User       @relation("StudentPageViews", fields: [studentId], references: [id])
-  textbookId    String
-  textbook      PDFTextbook @relation(fields: [textbookId], references: [id], onDelete: Cascade)
-  pageNumber    Int
-  duration      Int?       // Duration in seconds
-  
-  viewedAt      DateTime   @default(now())
-  
-  @@index([studentId])
-  @@index([textbookId])
-  @@index([viewedAt])
-}
-
-// Learning Activities
-model Activity {
-  id            String     @id @default(uuid())
-  classId       String
-  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  textbookId    String?
-  textbook      PDFTextbook? @relation(fields: [textbookId], references: [id])
-  
-  title         String
-  description   String?
-  type          String     @default("fill_in_blank") // fill_in_blank, multiple_choice, essay
-  questions     Json       // Array of questions with blanks
-  
-  createdBy     String
-  createdByUser User       @relation("CreatedActivities", fields: [createdBy], references: [id])
-  modifiable    Boolean    @default(true)
-  
-  responses     ActivityResponse[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@index([classId])
-  @@index([textbookId])
-  @@index([createdBy])
-}
-
-// Student responses to activities
-model ActivityResponse {
-  id            String     @id @default(uuid())
-  activityId    String
-  activity      Activity   @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  studentId     String
-  student       User       @relation("StudentResponses", fields: [studentId], references: [id])
-  
-  answers       Json       // Student's filled answers
-  score         Float?     // Optional score if graded
-  feedback      String?    // Teacher feedback
-  
-  submittedAt   DateTime   @default(now())
-  gradedAt      DateTime?
-  
-  @@unique([activityId, studentId])
-  @@index([activityId])
-  @@index([studentId])
-  @@index([submittedAt])
-}
-
-// Collaboration Groups
-model StudentGroup {
-  id            String     @id @default(uuid())
-  classId       String
-  class         Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
-  name          String
-  description   String?
-  
-  members       GroupMember[]
-  sessions      CollaborationSession[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@index([classId])
-}
-
-// Group membership with roles
-model GroupMember {
-  id            String     @id @default(uuid())
-  groupId       String
-  group         StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  studentId     String
-  student       User       @relation("GroupMemberships", fields: [studentId], references: [id])
-  role          String     @default("member") // leader, note_taker, presenter, member
-  
-  joinedAt      DateTime   @default(now())
-  
-  @@unique([groupId, studentId])
-  @@index([groupId])
-  @@index([studentId])
-}
-
-// Collaboration sessions for group work
-model CollaborationSession {
-  id            String     @id @default(uuid())
-  groupId       String
-  group         StudentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  activityId    String?
-  
-  status        String     @default("active") // active, completed, paused
-  sharedNotes   Json?      // Collaborative notes
-  schedule      Json?      // Meeting schedule
-  
-  startedAt     DateTime   @default(now())
-  endedAt       DateTime?
-  
-  @@index([groupId])
-  @@index([status])
-}
-
-// ==========================================
-// PDF 실시간 추적 (NEW)
-// ==========================================
-model PdfPageView {
-  id            String     @id @default(uuid())
-  userId        String?    // For logged-in users
-  user          User?      @relation("PdfPageViews", fields: [userId], references: [id])
-  guestId       String?    // For guest users
-  guest         GuestAccess? @relation("GuestPdfViews", fields: [guestId], references: [id])
-  
-  pdfId         String     // Reference to PDFTextbook
-  pdf           PDFTextbook @relation("PdfViews", fields: [pdfId], references: [id], onDelete: Cascade)
-  
-  pageNumber    Int
-  timeSpent     Int        // Time in milliseconds
-  viewedAt      DateTime   @default(now())
-  
-  @@index([userId])
-  @@index([guestId])
-  @@index([pdfId])
-  @@index([pageNumber])
-  @@index([viewedAt])
-}
-
-// ==========================================
-// 게스트 액세스 (기존 호환성)
-// ==========================================
-model GuestAccess {
-  id            String     @id @default(uuid())
-  sessionId     String?    @unique // Added for socket authentication
-  accessCode    String     @unique
-  textbookId    String?
-  studentName   String?    // Added for socket authentication
-  
-  expiresAt     DateTime
-  maxQuestions  Int        @default(50)
-  questionsUsed Int        @default(0)
-  
-  metadata      Json?      // 추가 정보
-  
-  // PDF tracking relations
-  pdfViews      PdfPageView[] @relation("GuestPdfViews")
-  
-  // 채팅 관계
-  chatSessions  ChatSession[] @relation("GuestChatSessions")
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@index([accessCode])
-  @@index([sessionId])
-  @@index([expiresAt])
-}
-
-// ==========================================
-// 콘텐츠 타입 및 RAG/챗봇 모델
-// ==========================================
-
 enum ContentType {
-  TEXT     // 텍스트만
-  FILE     // 파일만 (PDF, 이미지 등)
-  MIXED    // 텍스트 + 파일 혼합
-}
-
-// 페이지별 임베딩 청크 저장
-model PageEmbedding {
-  id            String     @id @default(uuid())
-  pageId        String
-  page          TextbookPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
-  
-  chunk         String     @db.Text     // 임베딩할 텍스트 청크
-  embedding     Float[]    // pgvector extension 사용 (1024차원)
-  chunkIndex    Int        // 페이지 내 청크 순서
-  metadata      Json?      // 추가 메타데이터 (페이지 번호, 섹션 등)
-  
-  createdAt     DateTime   @default(now())
-  
-  @@unique([pageId, chunkIndex])
-  @@index([pageId])
-  // Vector similarity search index (pgvector)
-  @@map("page_embeddings")
-}
-
-// 챗봇 세션 관리
-model ChatSession {
-  id            String     @id @default(uuid())
-  userId        String?    // 로그인 사용자 (null이면 게스트)
-  user          User?      @relation("UserChatSessions", fields: [userId], references: [id])
-  guestId       String?    // 게스트 사용자
-  guest         GuestAccess? @relation("GuestChatSessions", fields: [guestId], references: [id])
-  
-  pageId        String
-  page          TextbookPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
-  
-  sessionName   String?    // 세션 이름 (선택적)
-  isActive      Boolean    @default(true)
-  
-  messages      ChatMessage[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  @@index([userId])
-  @@index([guestId])
-  @@index([pageId])
-  @@index([isActive])
-}
-
-// 챗봇 메시지
-model ChatMessage {
-  id            String     @id @default(uuid())
-  sessionId     String
-  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  
-  role          MessageRole // user, assistant, system
-  content       String     @db.Text
-  metadata      Json?      // 추가 정보 (사용된 컨텍스트, 참조 소스 등)
-  
-  // RAG 관련 정보
-  retrievedChunks String[] @default([]) // 참조된 청크 ID들
-  confidence    Float?     // 응답 신뢰도 (0-1)
-  
-  createdAt     DateTime   @default(now())
-  
-  @@index([sessionId])
-  @@index([role])
-  @@index([createdAt])
+  TEXT
+  FILE
+  MIXED
 }
 
 enum MessageRole {
-  USER        // 사용자 메시지
-  ASSISTANT   // AI 어시스턴트 응답
-  SYSTEM      // 시스템 메시지
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum RelationType {
+  PREREQUISITE  // fromConcept is a prerequisite for toConcept
+  RELATED       // Concepts are related/connected
+  EXTENDS       // toConcept extends/builds upon fromConcept
+  CONTRASTS     // Concepts are contrasting/opposing
+  APPLIES       // fromConcept applies to toConcept (application/example)
 }

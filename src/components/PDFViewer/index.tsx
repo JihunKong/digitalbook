@@ -49,9 +49,85 @@ export default function PDFViewer({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showActivityPanel, setShowActivityPanel] = useState<boolean>(true);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
 
   // Custom hook for PDF page tracking
   const { trackPageView, getCurrentTracking } = usePDFTracking(pdfId);
+
+  // Pre-fetch PDF with credentials and create blob URL
+  useEffect(() => {
+    if (!pdfUrl) {
+      setBlobUrl(null);
+      return;
+    }
+
+    let currentBlobUrl: string | null = null;
+
+    const fetchPDF = async () => {
+      console.log('🔐 PDFViewer/index: Pre-fetching PDF with credentials');
+      console.log('  - PDF URL:', pdfUrl);
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Fetch PDF with credentials (cookies)
+        const response = await fetch(pdfUrl, {
+          credentials: 'include', // Send httpOnly cookies
+          headers: {
+            'Accept': 'application/pdf',
+          }
+        });
+
+        console.log('📡 PDF fetch response:', {
+          url: pdfUrl,
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+
+        if (!response.ok) {
+          let errorMessage = `Failed to load PDF: ${response.status} ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } catch {
+            // Response wasn't JSON
+          }
+          throw new Error(errorMessage);
+        }
+
+        // Convert response to blob
+        const blob = await response.blob();
+        console.log('✅ PDF fetched successfully:', {
+          size: blob.size,
+          type: blob.type,
+          sizeKB: (blob.size / 1024).toFixed(2)
+        });
+
+        // Create blob URL
+        const url = URL.createObjectURL(blob);
+        currentBlobUrl = url;
+        setBlobUrl(url);
+        console.log('✅ Blob URL created:', url);
+
+      } catch (err) {
+        console.error('❌ PDF fetch error:', err);
+        setError(err instanceof Error ? err.message : 'PDF 파일을 불러오는 중 문제가 발생했습니다.');
+        setIsLoading(false);
+      }
+    };
+
+    fetchPDF();
+
+    // Cleanup: revoke blob URL to free memory
+    return () => {
+      if (currentBlobUrl) {
+        console.log('🧹 Cleaning up blob URL:', currentBlobUrl);
+        URL.revokeObjectURL(currentBlobUrl);
+      }
+    };
+  }, [pdfUrl]);
 
   // Get activities for current page
   const currentPageActivities = activities.filter(
@@ -248,32 +324,45 @@ export default function PDFViewer({
         {/* PDF Document */}
         <ScrollArea className="flex-1">
           <div className="flex justify-center p-4">
-            <Document
-              file={pdfUrl}
-              options={{
-                cMapUrl: '/pdfjs/cmaps/',
-                cMapPacked: true,
-                standardFontDataUrl: '/pdfjs/standard_fonts/',
-              }}
-              onLoadSuccess={onDocumentLoadSuccess}
-              onLoadError={onDocumentLoadError}
-              loading={
-                <div className="flex items-center justify-center h-96">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                    <p>PDF를 불러오는 중...</p>
-                  </div>
+            {/* Loading state while fetching PDF */}
+            {isLoading && !blobUrl && (
+              <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p>PDF를 불러오는 중...</p>
                 </div>
-              }
-            >
-              <Page
-                pageNumber={pageNumber}
-                scale={scale}
-                className="shadow-lg"
-                renderTextLayer={false}
-                renderAnnotationLayer={false}
-              />
-            </Document>
+              </div>
+            )}
+
+            {/* PDF Document - only render when blob URL is ready */}
+            {blobUrl && (
+              <Document
+                file={{ url: blobUrl }}
+                options={{
+                  cMapUrl: '/pdfjs/cmaps/',
+                  cMapPacked: true,
+                  standardFontDataUrl: '/pdfjs/standard_fonts/',
+                }}
+                onLoadSuccess={onDocumentLoadSuccess}
+                onLoadError={onDocumentLoadError}
+                loading={
+                  <div className="flex items-center justify-center h-96">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <p>PDF를 렌더링하는 중...</p>
+                    </div>
+                  </div>
+                }
+              >
+                <Page
+                  pageNumber={pageNumber}
+                  scale={scale}
+                  className="shadow-lg"
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                />
+              </Document>
+            )}
           </div>
         </ScrollArea>
 

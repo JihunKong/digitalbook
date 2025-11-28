@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw, Loader2 } from 'lucide-react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -21,6 +21,61 @@ export default function PDFViewer({ fileUrl, onPageChange }: PDFViewerProps) {
   const [scale, setScale] = useState(1.0);
   const [rotation, setRotation] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Pre-fetch PDF with credentials and create blob URL
+  useEffect(() => {
+    let currentBlobUrl: string | null = null;
+
+    const fetchPDF = async () => {
+      console.log('🔐 PDFViewer: Pre-fetching PDF with credentials');
+      console.log('  - File URL:', fileUrl);
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Fetch PDF with credentials (cookies)
+        const response = await fetch(fileUrl, {
+          credentials: 'include', // Send httpOnly cookies
+          headers: {
+            'Accept': 'application/pdf',
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to load PDF: ${response.status} ${response.statusText}`);
+        }
+
+        // Convert response to blob
+        const blob = await response.blob();
+        console.log('✅ PDF fetched successfully, size:', blob.size, 'bytes');
+
+        // Create blob URL
+        const url = URL.createObjectURL(blob);
+        currentBlobUrl = url;
+        setBlobUrl(url);
+        setLoading(false);
+        console.log('✅ Blob URL created:', url);
+
+      } catch (err) {
+        console.error('❌ PDF fetch error:', err);
+        setError(err instanceof Error ? err.message : 'PDF 파일을 불러올 수 없습니다.');
+        setLoading(false);
+      }
+    };
+
+    fetchPDF();
+
+    // Cleanup: revoke blob URL to free memory
+    return () => {
+      if (currentBlobUrl) {
+        console.log('🧹 Cleaning up blob URL:', currentBlobUrl);
+        URL.revokeObjectURL(currentBlobUrl);
+      }
+    };
+  }, [fileUrl]);
 
   useEffect(() => {
     if (onPageChange) {
@@ -79,7 +134,7 @@ export default function PDFViewer({ fileUrl, onPageChange }: PDFViewerProps) {
             variant="outline"
             size="sm"
             onClick={() => changePage(-1)}
-            disabled={pageNumber <= 1}
+            disabled={pageNumber <= 1 || loading}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -90,7 +145,7 @@ export default function PDFViewer({ fileUrl, onPageChange }: PDFViewerProps) {
             variant="outline"
             size="sm"
             onClick={() => changePage(1)}
-            disabled={!numPages || pageNumber >= numPages}
+            disabled={!numPages || pageNumber >= numPages || loading}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -101,7 +156,7 @@ export default function PDFViewer({ fileUrl, onPageChange }: PDFViewerProps) {
             variant="outline"
             size="sm"
             onClick={() => changeScale(-0.1)}
-            disabled={scale <= 0.5}
+            disabled={scale <= 0.5 || loading}
           >
             <ZoomOut className="h-4 w-4" />
           </Button>
@@ -112,7 +167,7 @@ export default function PDFViewer({ fileUrl, onPageChange }: PDFViewerProps) {
             variant="outline"
             size="sm"
             onClick={() => changeScale(0.1)}
-            disabled={scale >= 2.0}
+            disabled={scale >= 2.0 || loading}
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
@@ -120,6 +175,7 @@ export default function PDFViewer({ fileUrl, onPageChange }: PDFViewerProps) {
             variant="outline"
             size="sm"
             onClick={rotate}
+            disabled={loading}
           >
             <RotateCw className="h-4 w-4" />
           </Button>
@@ -128,30 +184,39 @@ export default function PDFViewer({ fileUrl, onPageChange }: PDFViewerProps) {
 
       {/* PDF 뷰어 */}
       <div className="flex-1 overflow-auto flex justify-center items-start p-4 bg-gray-100">
-        <Document
-          file={fileUrl}
-          options={{
-            cMapUrl: '/pdfjs/cmaps/',
-            cMapPacked: true,
-            standardFontDataUrl: '/pdfjs/standard_fonts/',
-          }}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={onDocumentLoadError}
-          loading={
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          }
-        >
-          <Page
-            pageNumber={pageNumber}
-            scale={scale}
-            rotate={rotation}
-            renderTextLayer={true}
-            renderAnnotationLayer={true}
-            className="shadow-lg"
-          />
-        </Document>
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <span className="ml-2">PDF 로딩 중...</span>
+          </div>
+        )}
+
+        {!loading && blobUrl && (
+          <Document
+            file={{ url: blobUrl }} // Use blob URL (no authentication needed)
+            options={{
+              cMapUrl: '/pdfjs/cmaps/',
+              cMapPacked: true,
+              standardFontDataUrl: '/pdfjs/standard_fonts/',
+            }}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onDocumentLoadError}
+            loading={
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            }
+          >
+            <Page
+              pageNumber={pageNumber}
+              scale={scale}
+              rotate={rotation}
+              renderTextLayer={true}
+              renderAnnotationLayer={true}
+              className="shadow-lg"
+            />
+          </Document>
+        )}
       </div>
     </div>
   );

@@ -19,10 +19,10 @@ interface PDFViewerProps {
   className?: string
 }
 
-export function PDFViewer({ 
-  url, 
+export function PDFViewer({
+  url,
   file,
-  onPageChange, 
+  onPageChange,
   onTextExtracted,
   className = ''
 }: PDFViewerProps) {
@@ -31,6 +31,64 @@ export function PDFViewer({
   const [scale, setScale] = useState(1.0)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+
+  // Pre-fetch PDF with credentials and create blob URL (only for URL-based PDFs)
+  useEffect(() => {
+    if (!url) {
+      setBlobUrl(null)
+      return
+    }
+
+    let currentBlobUrl: string | null = null
+
+    const fetchPDF = async () => {
+      console.log('🔐 PDFViewer (textbook): Pre-fetching PDF with credentials')
+      console.log('  - File URL:', url)
+
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        // Fetch PDF with credentials (cookies)
+        const response = await fetch(url, {
+          credentials: 'include', // Send httpOnly cookies
+          headers: {
+            'Accept': 'application/pdf',
+          }
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to load PDF: ${response.status} ${response.statusText}`)
+        }
+
+        // Convert response to blob
+        const blob = await response.blob()
+        console.log('✅ PDF fetched successfully, size:', blob.size, 'bytes')
+
+        // Create blob URL
+        const blobUrlCreated = URL.createObjectURL(blob)
+        currentBlobUrl = blobUrlCreated
+        setBlobUrl(blobUrlCreated)
+        console.log('✅ Blob URL created:', blobUrlCreated)
+
+      } catch (err) {
+        console.error('❌ PDF fetch error:', err)
+        setError(err instanceof Error ? err.message : 'PDF 파일을 불러올 수 없습니다.')
+        setIsLoading(false)
+      }
+    }
+
+    fetchPDF()
+
+    // Cleanup: revoke blob URL to free memory
+    return () => {
+      if (currentBlobUrl) {
+        console.log('🧹 Cleaning up blob URL:', currentBlobUrl)
+        URL.revokeObjectURL(currentBlobUrl)
+      }
+    }
+  }, [url])
 
   useEffect(() => {
     if (onPageChange) {
@@ -77,7 +135,8 @@ export function PDFViewer({
     }
   }
 
-  const pdfSource = file || (url ? { url } : null)
+  // Use blob URL if available (from URL fetch), otherwise use file directly
+  const pdfSource = file || (blobUrl ? { url: blobUrl } : null)
 
   return (
     <Card className={`flex flex-col h-full ${className}`}>

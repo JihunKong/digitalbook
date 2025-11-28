@@ -238,15 +238,35 @@ export const authenticateUser = async (
   next: NextFunction
 ) => {
   try {
-    // Check for token in header or cookies
-    let token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      token = req.cookies?.accessToken;
+    // CRITICAL FIX: Check cookies FIRST, then Authorization header
+    // This prevents expired tokens in Authorization header from blocking valid cookies
+    // httpOnly cookies are more secure and should take precedence
+    let token = req.cookies?.accessToken;
+    let tokenSource = 'cookie';
+
+    // Only use Authorization header if no cookie token exists
+    if (!token && req.headers.authorization) {
+      token = req.headers.authorization.replace('Bearer ', '');
+      tokenSource = 'header';
     }
 
     if (!token) {
+      console.warn('🔐 Authentication failed - no token:', {
+        path: req.path,
+        method: req.method,
+        hasAuthHeader: !!req.headers.authorization,
+        hasCookie: !!req.cookies?.accessToken,
+        cookieKeys: Object.keys(req.cookies || {})
+      });
       return res.status(401).json({ error: '인증 토큰이 필요합니다.' });
     }
+
+    console.log('🔐 Authenticating request:', {
+      path: req.path,
+      method: req.method,
+      tokenSource,
+      tokenLength: token.length
+    });
 
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
@@ -285,9 +305,28 @@ export const authenticateUser = async (
       return next();
     }
 
+    console.warn('🔐 User not found for token:', {
+      path: req.path,
+      userId: (decoded as any)?.userId,
+      hasUserId: !!(decoded as any)?.userId
+    });
     return res.status(401).json({ error: '유효하지 않은 토큰입니다.' });
   } catch (error) {
-    console.error('User authentication error:', error);
+    console.error('🔐 Authentication error:', {
+      path: req.path,
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      isTokenError: error instanceof jwt.JsonWebTokenError,
+      isExpiredError: error instanceof jwt.TokenExpiredError
+    });
+
+    // Provide specific error messages for different failure types
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ error: '토큰이 만료되었습니다. 다시 로그인해주세요.' });
+    } else if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ error: '유효하지 않은 토큰입니다.' });
+    }
+
     return res.status(401).json({ error: '인증에 실패했습니다.' });
   }
 };

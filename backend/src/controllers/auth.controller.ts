@@ -24,11 +24,17 @@ interface TokenPair {
 }
 
 // 쿠키 옵션
+// FIX: Use 'lax' for both environments to allow cookies on navigation requests
+// 'strict' blocks cookies on all cross-site requests, causing authentication failures
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
-  path: '/'
+  sameSite: 'lax' as 'strict' | 'lax',  // Always use 'lax' - 'strict' causes auth issues
+  path: '/',
+  // 프로덕션에서 도메인 설정
+  ...(process.env.NODE_ENV === 'production' && {
+    domain: '.xn--220bu63c.com'
+  })
 };
 
 class AuthController {
@@ -42,13 +48,13 @@ class AuthController {
     }
     
     const accessToken = jwt.sign(
-      payload,
+      payload as object,
       jwtSecret,
       { expiresIn: process.env.ACCESS_TOKEN_EXPIRES || '15m' }
     );
     
     const refreshToken = jwt.sign(
-      payload,
+      payload as object,
       refreshSecret,
       { expiresIn: process.env.REFRESH_TOKEN_EXPIRES || '7d' }
     );
@@ -109,12 +115,12 @@ class AuthController {
       
       // 입력 검증
       if (!email || !password || !name || !role) {
-        throw new AppError('Missing required fields', 400);
+        throw new AppError('필수 정보가 누락되었습니다. 모든 필드를 입력해 주세요.', 400);
       }
       
       // 역할 검증
       if (!Object.values(UserRole).includes(role)) {
-        throw new AppError('Invalid role', 400);
+        throw new AppError('유효하지 않은 사용자 역할입니다.', 400);
       }
       
       // 기존 사용자 확인
@@ -123,7 +129,7 @@ class AuthController {
       });
       
       if (existingUser) {
-        throw new AppError('User already exists', 400);
+        throw new AppError('이 이메일은 이미 등록되어 있습니다. 다른 이메일을 사용하거나 로그인해 주세요.', 400);
       }
       
       // 비밀번호 해싱
@@ -206,6 +212,7 @@ class AuthController {
       
       res.status(201).json({
         message: 'User registered successfully',
+        token: accessToken, // Added for client-side Authorization header
         user: {
           id: result.user.id,
           email: result.user.email,
@@ -356,6 +363,7 @@ class AuthController {
       
       res.json({
         message: 'Login successful',
+        token: accessToken, // Added for client-side Authorization header
         user: {
           id: userWithProfile.id,
           email: userWithProfile.email,

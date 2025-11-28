@@ -10,7 +10,7 @@ async function main() {
   const teacherPassword = await bcrypt.hash('teacher123', 10)
   const studentPassword = await bcrypt.hash('student123', 10)
 
-  // Create teacher user
+  // Create teacher user with profile
   const teacher = await prisma.user.upsert({
     where: { email: 'teacher@example.com' },
     update: {},
@@ -19,10 +19,22 @@ async function main() {
       password: teacherPassword,
       name: '김선생',
       role: 'TEACHER',
+      isActive: true,
+      teacherProfile: {
+        create: {
+          school: '서울고등학교',
+          subject: '국어',
+          grade: '1학년',
+          bio: '국어 교육 전문가입니다.',
+        }
+      }
     },
+    include: {
+      teacherProfile: true
+    }
   })
 
-  // Create student users
+  // Create student users with profiles
   const student1 = await prisma.user.upsert({
     where: { email: 'student1@example.com' },
     update: {},
@@ -31,7 +43,19 @@ async function main() {
       password: studentPassword,
       name: '박학생',
       role: 'STUDENT',
+      isActive: true,
+      studentProfile: {
+        create: {
+          studentId: '20240001',
+          school: '서울고등학교',
+          grade: '1학년',
+          className: '1반',
+        }
+      }
     },
+    include: {
+      studentProfile: true
+    }
   })
 
   const student2 = await prisma.user.upsert({
@@ -42,7 +66,19 @@ async function main() {
       password: studentPassword,
       name: '이학생',
       role: 'STUDENT',
+      isActive: true,
+      studentProfile: {
+        create: {
+          studentId: '20240002',
+          school: '서울고등학교',
+          grade: '1학년',
+          className: '1반',
+        }
+      }
     },
+    include: {
+      studentProfile: true
+    }
   })
 
   // Create a class
@@ -53,53 +89,39 @@ async function main() {
       name: '국어 1학년',
       description: '데모 국어 수업',
       code: 'DEMO2024',
+      teacherId: teacher.teacherProfile!.id,
+      subject: '국어',
+      grade: '1학년',
+      semester: '1학기',
     },
   })
 
-  // Add teacher as class member
-  await prisma.classMember.upsert({
+  // Enroll students in class
+  await prisma.classEnrollment.upsert({
     where: { 
-      userId_classId: {
-        userId: teacher.id,
-        classId: class1.id
+      classId_studentId: {
+        classId: class1.id,
+        studentId: student1.studentProfile!.id
       }
     },
     update: {},
     create: {
-      userId: teacher.id,
       classId: class1.id,
-      role: 'TEACHER',
+      studentId: student1.studentProfile!.id,
     },
   })
 
-  // Add students as class members
-  await prisma.classMember.upsert({
+  await prisma.classEnrollment.upsert({
     where: { 
-      userId_classId: {
-        userId: student1.id,
-        classId: class1.id
+      classId_studentId: {
+        classId: class1.id,
+        studentId: student2.studentProfile!.id
       }
     },
     update: {},
     create: {
-      userId: student1.id,
       classId: class1.id,
-      role: 'STUDENT',
-    },
-  })
-
-  await prisma.classMember.upsert({
-    where: { 
-      userId_classId: {
-        userId: student2.id,
-        classId: class1.id
-      }
-    },
-    update: {},
-    create: {
-      userId: student2.id,
-      classId: class1.id,
-      role: 'STUDENT',
+      studentId: student2.studentProfile!.id,
     },
   })
 
@@ -110,8 +132,6 @@ async function main() {
     create: {
       id: 'demo-textbook-1',
       title: '현대문학의 이해',
-      subject: '국어',
-      grade: 1,
       description: '현대문학 작품을 통해 문학적 사고력을 기르는 교과서',
       content: {
         chapters: [
@@ -128,15 +148,32 @@ async function main() {
           }
         ]
       },
-      teacherId: teacher.id,
-      isPublished: true,
+      authorId: teacher.teacherProfile!.id,
       isPublic: true,
-      accessCode: 'DEMO123',
-      aiSettings: {
-        style: 'educational',
-        difficulty: 'beginner'
-      },
+      aiGenerated: false,
     },
+  })
+
+  // Create textbook pages
+  await prisma.textbookPage.upsert({
+    where: {
+      textbookId_pageNumber: {
+        textbookId: textbook.id,
+        pageNumber: 1
+      }
+    },
+    update: {},
+    create: {
+      textbookId: textbook.id,
+      pageNumber: 1,
+      title: '현대시의 이해',
+      content: {
+        type: 'text',
+        content: '현대시는 근대 이후 한국문학의 중요한 갈래입니다. 자유시와 정형시의 특징을 살펴보고, 대표 작품들을 감상해보겠습니다.'
+      },
+      contentType: 'TEXT',
+      textContent: '현대시는 근대 이후 한국문학의 중요한 갈래입니다.'
+    }
   })
 
   // Assign textbook to class
@@ -162,13 +199,8 @@ async function main() {
       id: 'demo-assignment-1',
       title: '현대시 감상문 작성',
       description: '좋아하는 현대시를 선택하여 감상문을 작성하세요.',
-      type: 'WRITING',
-      content: {
-        instructions: '500자 이상 작성',
-        rubric: ['내용의 충실성', '표현의 적절성', '창의성']
-      },
+      type: 'ESSAY',
       classId: class1.id,
-      teacherId: teacher.id,
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
       points: 100,
     },
@@ -182,7 +214,7 @@ async function main() {
       { email: student2.email, name: student2.name }
     ],
     class: { name: class1.name, code: class1.code },
-    textbook: { title: textbook.title, accessCode: textbook.accessCode },
+    textbook: { title: textbook.title },
     assignment: { title: assignment.title }
   })
 }
