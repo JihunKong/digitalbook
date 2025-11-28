@@ -32,18 +32,28 @@ export const authenticateTeacher = async (
   next: NextFunction
 ) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    // CRITICAL FIX: Check cookies FIRST, then Authorization header
+    // Browser sends credentials via httpOnly cookies, not Authorization header
+    let token = req.cookies?.accessToken;
+    let tokenSource = 'cookie';
+
+    if (!token && req.headers.authorization) {
+      token = req.headers.authorization.replace('Bearer ', '');
+      tokenSource = 'header';
+    }
 
     // Enhanced debugging for 403 issues
     logger.info('Teacher authentication attempt', {
       path: req.path,
       method: req.method,
       hasToken: !!token,
+      tokenSource,
       tokenPrefix: token ? token.substring(0, 20) + '...' : 'none',
       userAgent: req.get('User-Agent'),
       ip: req.ip,
       headers: {
         authorization: req.headers.authorization ? 'present' : 'missing',
+        hasCookie: !!req.cookies?.accessToken,
         contentType: req.headers['content-type'],
       }
     });
@@ -51,7 +61,9 @@ export const authenticateTeacher = async (
     if (!token) {
       logger.warn('Teacher auth failed: No token provided', {
         path: req.path,
-        ip: req.ip
+        ip: req.ip,
+        hasCookie: !!req.cookies?.accessToken,
+        hasAuthHeader: !!req.headers.authorization
       });
       return res.status(401).json({ error: '인증 토큰이 필요합니다.' });
     }

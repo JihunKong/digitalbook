@@ -42,7 +42,7 @@ export function useSocket(options: UseSocketOptions = {}) {
 
     setConnectionState(prev => ({ ...prev, isConnecting: true, error: null }));
 
-    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'https://xn--220bu63c.com', {
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000', {
       auth: {
         token,
       },
