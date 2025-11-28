@@ -83,7 +83,7 @@ const corsOptions = {
   },
   credentials: true, // Allow cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-Demo-Mode'],
   exposedHeaders: ['Set-Cookie'],
   maxAge: 86400, // 24 hours
 };
