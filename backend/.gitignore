@@ -1,0 +1,9 @@
+node_modules
+.git
+uploads
+*.log
+.env
+.env.local
+.env.*.local
+*.tar.gz
+coverage

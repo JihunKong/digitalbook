@@ -1,0 +1,12 @@
+node_modules
+.git
+uploads
+*.log
+.env.local
+.env.*.local
+*.tar.gz
+*.md
+src
+tsconfig.json
+.eslintrc.js
+*.sh

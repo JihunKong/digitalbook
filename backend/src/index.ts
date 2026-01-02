@@ -1,8 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
-// import passport from './config/passport'; // Temporarily disabled - passport package not installed
+import passport from './config/passport';
 import dotenv from 'dotenv';
 import path from 'path';
 import { createServer } from 'http';
@@ -62,6 +63,17 @@ app.use(helmet({
   },
 }));
 
+// Compression middleware for API responses
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6, // Balance between speed and compression ratio
+}));
+
 // CORS configuration with cookie support
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
@@ -93,7 +105,7 @@ app.use(cors(corsOptions));
 app.use(cookieParser(process.env.COOKIE_SECRET || 'cookie-secret-key'));
 
 // Passport middleware - must come after cookie parser
-// app.use(passport.initialize()); // Temporarily disabled - passport not configured
+app.use(passport.initialize());
 
 // Body parsing middleware with size limits - increased to match file upload limits
 app.use(express.json({ 
