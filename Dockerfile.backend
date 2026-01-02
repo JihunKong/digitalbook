@@ -1,0 +1,44 @@
+# Backend Express.js Dockerfile
+# Build from repository root, explicitly targeting /backend directory
+
+FROM node:18-alpine AS builder
+
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+# Copy only backend files
+COPY backend/package*.json ./
+RUN npm install
+
+COPY backend/tsconfig.json ./
+COPY backend/src ./src
+RUN npm run build
+
+COPY backend/prisma ./prisma
+
+FROM node:18-alpine AS runner
+
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+COPY backend/package*.json ./
+RUN npm install --omit=dev
+
+COPY backend/prisma ./prisma
+RUN npx prisma generate
+
+COPY --from=builder /app/dist ./dist
+
+ENV NODE_ENV=production
+ENV PORT=4000
+
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN chown -R nodejs:nodejs /app
+
+USER nodejs
+
+EXPOSE 4000
+
+CMD ["node", "dist/index.js"]
