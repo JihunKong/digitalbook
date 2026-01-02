@@ -6,7 +6,8 @@ uploads
 .env.*.local
 *.tar.gz
 *.md
-src
-tsconfig.json
 .eslintrc.js
 *.sh
+dist
+coverage
+.nyc_output
