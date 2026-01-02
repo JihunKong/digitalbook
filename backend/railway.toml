@@ -3,7 +3,7 @@
 
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "backend/Dockerfile"
 watchPatterns = ["src/**", "prisma/**", "package.json", "tsconfig.json", "Dockerfile"]
 
 [deploy]
