@@ -2,9 +2,9 @@
 # Express.js API Server
 
 [build]
-builder = "dockerfile"
-dockerfilePath = "Dockerfile"
-watchPatterns = ["src/**", "prisma/**", "package.json", "tsconfig.json", "Dockerfile"]
+builder = "nixpacks"
+buildCommand = "npm run build && npx prisma generate"
+watchPatterns = ["src/**", "prisma/**", "package.json", "tsconfig.json"]
 
 [deploy]
 healthcheckPath = "/health"
