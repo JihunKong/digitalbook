@@ -1,0 +1,15 @@
+# DigitalBook Backend - Railway Configuration
+# Express.js API Server
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "./Dockerfile"
+watchPatterns = ["src/**", "prisma/**", "package.json", "tsconfig.json", "Dockerfile"]
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+numReplicas = 1
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+startCommand = "node dist/index.js"
