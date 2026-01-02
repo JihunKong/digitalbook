@@ -1,0 +1,13 @@
+# DigitalBook Frontend - Railway Configuration
+# Next.js 14 Application
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile.nextjs"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+numReplicas = 1
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
